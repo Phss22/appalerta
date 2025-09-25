@@ -18,8 +18,13 @@
     }
     @media (max-width:480px){ .app{ width:100vw; height:100vh; border-radius:0; box-shadow:none; } }
 
+    /* Fundo (foto) — agora definido por classe, sem querystring */
     .bg{ position:absolute; inset:0; background:#000 center/cover no-repeat;
          filter: brightness(var(--bg-bright)) contrast(1.05) saturate(1.06); }
+    .bg.bg-none   { background-image:url('joana_normal.jpg'); }
+    .bg.bg-yellow { background-image:url('joana_alerta_amarelo.jpg'); }
+    .bg.bg-orange { background-image:url('joana_alerta_laranja.jpg'); }
+
     .scrim{ position:absolute; inset:0; background:linear-gradient(180deg,rgba(0,0,0,.10),rgba(0,0,0,.35)); }
 
     /* TOPO: dois cards lado a lado e sempre dentro da tela */
@@ -56,15 +61,12 @@
     .btn{ border:0; padding:10px 14px; border-radius:12px; background:#1565c0; color:#fff; font-weight:700; cursor:pointer; box-shadow:0 6px 18px rgba(0,0,0,.25);}
     .btn:active{ transform:translateY(1px); }
     .ts{ font-size:11px; color:#e7eef6; text-shadow:0 1px 2px rgba(0,0,0,.55); }
-
-    #toast{ position:absolute; left:50%; transform:translateX(-50%); bottom:70px; background:#ffebee; color:#b71c1c;
-            border:1px solid #ffcdd2; padding:8px 10px; border-radius:10px; font-size:12px; display:none; box-shadow:0 6px 20px rgba(0,0,0,.2); z-index:5; }
   </style>
 </head>
 <body>
   <div class="stage">
     <div class="app">
-      <div class="bg" id="bg"></div>
+      <div class="bg bg-none" id="bg"></div>
       <div class="scrim"></div>
 
       <div class="hud">
@@ -93,53 +95,44 @@
         <button class="btn" id="btnSwap">Forçar troca</button>
         <div class="ts" id="ts">Atualizado em: —</div>
       </div>
-
-      <div id="toast"></div>
     </div>
   </div>
 
 <script defer>
 (function(){
-  // ===== CONFIGURAÇÃO APAC =====
-  // Troque pela URL da camada de chuva (termina em /FeatureServer/0)
+  // ====== APAC ======
+  // Quando tiver a URL real da camada (FeatureServer/0), mude ENABLE_APAC para true.
+  const ENABLE_APAC     = false;  // << por padrão desligado para não mostrar erro
   const SERVICE_URL     = 'https://geoportal.apac.pe.gov.br/server/rest/services/Hosted/EXEMPLO_CAMADA/FeatureServer/0';
-  const FIELD_MUNICIPIO = 'municipio';   // ajuste pro nome exato do campo do município (ex.: MUNICIPIO)
-  const APAC_MUNICIPIO  = 'RECIFE';      // município desejado
-  const UPDATE_MIN      = 5;             // frequência de atualização (min)
-  const USE_PROXY       = false;         // se der CORS, crie /api/apac-rain.js e troque para true
+  const FIELD_MUNICIPIO = 'municipio';
+  const APAC_MUNICIPIO  = 'RECIFE';
+  const UPDATE_MIN      = 5;
 
-  // ===== IMAGENS DA JOANA (somente .jpg) =====
-  const BG_IMAGES = {
-    none:   'joana_normal.jpg',
-    yellow: 'joana_alerta_amarelo.jpg',
-    orange: 'joana_alerta_laranja.jpg'
-  };
+  // ====== SIMULAÇÃO (só do nível do rio) ======
+  const TICK_SECONDS = 30;
 
-  // ===== CONFIG SIMULAÇÃO =====
-  const TICK_SECONDS = 30;               // alterna o nível do rio (fotos/olhos)
-  const bg   = document.getElementById('bg');
-  const toast= document.getElementById('toast');
-
-  function showToast(msg){ toast.textContent=msg; toast.style.display='block'; setTimeout(()=>toast.style.display='none',2600); }
-  function setBackground(level){
-    const src = BG_IMAGES[level] || BG_IMAGES.none;
-    bg.style.backgroundImage = `url("${src}?v=${Date.now()}")`; // cache-buster
-  }
-
-  // UI refs
-  const riverIcon  = document.getElementById('riverIcon');
-  const riverStatus= document.getElementById('riverStatus');
-  const riverMsg   = document.getElementById('riverMsg');
-  const rainVal    = document.getElementById('rainVal');
-  const landText   = document.getElementById('landText');
-  const ts         = document.getElementById('ts');
-  const btnSwap    = document.getElementById('btnSwap');
+  const bg          = document.getElementById('bg');
+  const riverIcon   = document.getElementById('riverIcon');
+  const riverStatus = document.getElementById('riverStatus');
+  const riverMsg    = document.getElementById('riverMsg');
+  const rainVal     = document.getElementById('rainVal');
+  const landText    = document.getElementById('landText');
+  const ts          = document.getElementById('ts');
+  const btnSwap     = document.getElementById('btnSwap');
 
   let state = { river_level:'none', rain_mm_24h:NaN, landslide_risk:'none', ts:new Date() };
 
+  function setBgClass(level){
+    bg.classList.remove('bg-none','bg-yellow','bg-orange');
+    bg.classList.add(
+      level==='yellow' ? 'bg-yellow' :
+      level==='orange' ? 'bg-orange' : 'bg-none'
+    );
+  }
+
   function setState(s){
     state = s;
-    setBackground(state.river_level);
+    setBgClass(state.river_level);
 
     const map = {
       none:{icon:'💧',label:'Normal',cls:'ok',msg:'Tudo tranquilo por enquanto.'},
@@ -164,7 +157,6 @@
   const levels=['none','yellow','orange'];
   const nextLevel = l => levels[(levels.indexOf(l)+1)%levels.length];
 
-  // Simula só o nível do rio (fotos/olhos)
   function randomSim(){
     const next = nextLevel(state.river_level);
     setState({
@@ -175,7 +167,6 @@
     });
   }
 
-  // ===== Integração APAC (ArcGIS FeatureServer) =====
   async function getApacRain({ municipio = APAC_MUNICIPIO, limit = 1 } = {}) {
     const params = new URLSearchParams({
       where: `UPPER(${FIELD_MUNICIPIO})='${(municipio||'').toUpperCase()}'`,
@@ -185,44 +176,40 @@
       returnGeometry: 'false',
       f: 'json'
     });
-    const base = USE_PROXY ? '/api/apac-rain' : `${SERVICE_URL}/query`;
-    const url = `${base}?${params.toString()}`;
-
+    const url = `${SERVICE_URL}/query?${params.toString()}`;
     const res = await fetch(url);
-    if (!res.ok) throw new Error('Falha ao consultar a APAC');
+    if (!res.ok) throw new Error('Falha APAC');
     const data = await res.json();
-    if (!data.features || !data.features.length) throw new Error('Sem dados para este município');
+    if (!data.features || !data.features.length) throw new Error('Sem dados');
     return data.features.map(f => f.attributes);
   }
 
   async function atualizarChuva() {
+    if (!ENABLE_APAC) return;  // não chama enquanto não configurar a camada
     try {
       const [row] = await getApacRain({ municipio: APAC_MUNICIPIO, limit: 1 });
       const mm =
         row.mm_24h ?? row.acum_24h ?? row.acumulado_24h ?? row.prec24h ?? row.valor ?? 0;
-
       let land = 'none';
       if (mm > 120) land = 'orange';
       else if (mm > 80) land = 'yellow';
 
       const tsRow = row.ultima_atualizacao || Date.now();
-
       setState({
         river_level: state.river_level,
         rain_mm_24h: Number(mm),
         landslide_risk: land,
         ts: tsRow
       });
-    } catch (e) {
-      console.warn(e);
-      showToast('Não consegui ler a chuva da APAC agora.');
+    } catch (_) {
+      // silencioso por padrão (sem toast)
     }
   }
 
   // Inicial
   setState(state);
   atualizarChuva();
-  setInterval(atualizarChuva, 5*60*1000);
+  setInterval(atualizarChuva, UPDATE_MIN*60*1000);
   randomSim();
   setInterval(randomSim, TICK_SECONDS*1000);
   btnSwap.addEventListener('click', randomSim);
