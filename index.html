@@ -25,21 +25,24 @@
          filter: brightness(var(--bg-bright)) contrast(1.05) saturate(1.06); }
     .scrim{ position:absolute; inset:0; background:linear-gradient(180deg,rgba(0,0,0,.10),rgba(0,0,0,.35)); }
 
-    .hud{ position:absolute; left:12px; right:12px; top:12px; display:flex; }
+    /* HUD topo */
+    .hud{ position:absolute; left:12px; right:12px; top:12px; }
     .widgets{
-      display:grid; grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap:8px; width:100%; box-sizing:border-box;
+      display:grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap:8px; width:100%;
     }
     .mini{
-      min-width:auto; padding:10px 12px; border-radius:12px;
+      padding:10px 12px; border-radius:12px;
       backdrop-filter:blur(8px);
       background:linear-gradient(135deg,var(--glass-bg1),var(--glass-bg2));
       border:1px solid var(--glass-brd);
-      box-shadow:0 6px 24px rgba(0,0,0,.18);
-      color:#0f1720;
+      box-shadow:0 8px 22px rgba(0,0,0,.16);
+      color:#0f1720; min-height:54px;
+      transition:all .18s ease;
     }
-    .mini .t{ font-size:12px; font-weight:700; margin:0 0 2px; }
-    .mini .s{ font-size:12px; white-space:pre-line; color:#2d3a45; }
+    .mini .t{ font-size:12px; font-weight:700; margin:0 0 2px; opacity:.95; }
+    .mini .s{ font-size:12px; white-space:pre-line; color:#2d3a45; line-height:1.2; }
 
     /* Botão pequeno dentro do card */
     .mini .mini-btn{
@@ -49,6 +52,19 @@
     }
     .mini .mini-btn:active{ transform:translateY(1px); }
 
+    /* --- MODO COMPACTO (vira chip) --- */
+    .mini.compact{
+      padding:6px 10px; min-height:auto;
+      display:flex; align-items:center; gap:8px;
+      border-radius:999px; box-shadow:0 4px 14px rgba(0,0,0,.12);
+    }
+    .mini.compact .t{ display:none; }
+    .mini.compact .s{ display:flex; align-items:center; gap:6px; white-space:nowrap; }
+    .mini.compact .s br{ display:none; }               /* esconde a quebra de linha “em Municipio” */
+    .mini.compact .mini-btn{ display:none; }           /* esconde botão no chip */
+    .pill-ico{ font-size:14px; }
+
+    /* Texto central */
     .center{
       position:absolute; left:50%; top:var(--center-top); transform:translate(-50%,-50%);
       width:100%; display:flex; justify-content:center; padding:0 16px; pointer-events:none; z-index:3;
@@ -74,15 +90,17 @@
 
       <div class="hud">
         <div class="widgets">
-          <div class="mini">
+          <!-- Rain -->
+          <div class="mini" id="cardRain">
             <div class="t">☔ Chuva nas últimas 24h</div>
             <div class="s">
-              <span id="rainVal">—</span> mm
-              <br>em <strong id="muniName">carregando…</strong>
+              <span class="pill-ico">☔</span>
+              <span><span id="rainVal">—</span> mm<br>em <strong id="muniName">carregando…</strong></span>
             </div>
             <button id="btnLocate" class="mini-btn">Usar minha localização</button>
           </div>
-          <div class="mini">
+          <!-- Landslide -->
+          <div class="mini" id="cardLand">
             <div class="t">⛰️ Risco de deslizamento</div>
             <div class="s" id="landText">Carregando…</div>
           </div>
@@ -100,26 +118,26 @@
 
       <div class="bottom">
         <button class="btn" id="btnSwap">Forçar troca</button>
-        <div class="ts" id="ts">Atualizado em: — • v4</div>
+        <div class="ts" id="ts">Atualizado em: —</div>
       </div>
     </div>
   </div>
 
 <script defer>
 (function(){
-  console.log('Alerta do Rio — geoloc v4 (município por polígono)');
+  console.log('UI compact chips');
   const TICK_SECONDS = 30;
 
-  // ===== APAC por camadas corretas =====
+  /* ======= APAC (ajuste aqui se precisar) ======= */
   const MAP_BASE          = 'https://geoportal.apac.pe.gov.br/server/rest/services/met_volume_acumulado_chuva_24hs/MapServer';
-  const LAYER_MUNICIPIOS  = 1; // polígono municipal com nm_mun + horas_24
-  const USE_PROXY         = true; // true se estiver com /api/apac-rain.js na Vercel
-  const FIELD_NAME        = 'nm_mun';     // nome do município no layer 1
-  const FIELD_MM24        = 'horas_24';   // acumulado 24h no layer 1
-  let   MUNICIPIO         = localStorage.getItem('apac_muni') || 'NAZARÉ DA MATA';
+  const LAYER_MUNICIPIOS  = 1;               // polígono com nm_mun + horas_24
+  const FIELD_NAME        = 'nm_mun';
+  const FIELD_MM24        = 'horas_24';
+  const USE_PROXY         = true;            // se usa /api/apac-rain.js na Vercel
   const UPDATE_MIN        = 5;
+  let   MUNICIPIO         = localStorage.getItem('apac_muni') || 'NAZARÉ DA MATA';
 
-  // ===== Fundo (seu esquema, sem mexer nos arquivos) =====
+  /* ======= Fundo ======= */
   const bg = document.getElementById('bg');
   const BG_BASE = { none:'joana_normal', yellow:'joana_alerta_amarelo', orange:'joana_alerta_laranja' };
   const EXT = ['.jpg','.jpeg','.png',''];
@@ -131,28 +149,32 @@
   }
   function setBackground(level){ resolveImage(BG_BASE[level]||BG_BASE.none, (src)=>{ if(src) bg.style.backgroundImage=`url("${src}")`; }); }
 
-  // ===== UI refs =====
+  /* ======= UI refs ======= */
   const riverIcon = document.getElementById('riverIcon');
   const riverStatus = document.getElementById('riverStatus');
   const riverMsg = document.getElementById('riverMsg');
   const rainVal = document.getElementById('rainVal');
-  const landText = document.getElementById('landText');
   const muniNameEl = document.getElementById('muniName');
+  const landText = document.getElementById('landText');
   const ts = document.getElementById('ts');
   const btnSwap = document.getElementById('btnSwap');
   const btnLocate = document.getElementById('btnLocate');
+  const cardRain = document.getElementById('cardRain');
+  const cardLand = document.getElementById('cardLand');
 
   let state = { river_level:'none', rain_mm_24h:NaN, landslide_risk:'none', ts:new Date() };
 
   function setState(s){
     state = s;
     setBackground(state.river_level);
+
     const map = {
       none:{icon:'💧',label:'Normal',cls:'ok',msg:'Tudo tranquilo por enquanto.'},
       yellow:{icon:'⚠️',label:'ALERTA AMARELO',cls:'yellow',msg:'Atenção! Nível elevado. Fique em alerta.'},
       orange:{icon:'⚠️',label:'ALERTA LARANJA',cls:'orange',msg:'Risco moderado/alto. Evite áreas sujeitas a alagamento.'}
     };
     const m = map[state.river_level]||map.none;
+
     riverIcon.textContent = m.icon;
     riverStatus.className = 'status ' + m.cls;
     riverStatus.textContent = m.label;
@@ -161,7 +183,16 @@
     if (!Number.isNaN(state.rain_mm_24h)) {
       rainVal.textContent = Number(state.rain_mm_24h).toFixed(1);
     }
-    landText.textContent = {none:'Nenhum',yellow:'AMARELO — monitore encostas.',orange:'LARANJA — evite áreas de risco.'}[state.landslide_risk]||'Nenhum';
+    landText.textContent = {
+      none:'⛰️ Nenhum',
+      yellow:'⚠️ AMARELO — monitore encostas.',
+      orange:'⛔ LARANJA — evite áreas de risco.'
+    }[state.landslide_risk] || '⛰️ Nenhum';
+
+    // Compacta automaticamente:
+    cardRain.classList.toggle('compact', Number(state.rain_mm_24h) < 1);
+    cardLand.classList.toggle('compact', state.landslide_risk === 'none');
+
     ts.textContent = 'Atualizado em: ' + new Date(state.ts).toLocaleString('pt-BR');
   }
 
@@ -172,7 +203,7 @@
     setState({ river_level:next, rain_mm_24h:state.rain_mm_24h, landslide_risk:state.landslide_risk, ts:new Date() });
   }
 
-  // ===== ArcGIS helper =====
+  /* ======= ArcGIS ======= */
   async function fetchArcGIS(layer, params){
     const base = USE_PROXY
       ? `/api/apac-rain?service=${encodeURIComponent(`${MAP_BASE}/${layer}`)}&`
@@ -183,38 +214,32 @@
     return r.json();
   }
 
-  // 1) Descobrir município pelo polígono (layer 1)
   async function getMunicipioByPoint(lat, lon){
     const geometry = JSON.stringify({ x: lon, y: lat, spatialReference:{ wkid:4326 } });
     const params = new URLSearchParams({
       geometry, geometryType:'esriGeometryPoint', inSR:'4326',
-      spatialRel:'esriSpatialRelIntersects',
-      outFields: `${FIELD_NAME},municipio`,
-      returnGeometry:'false', f:'json', resultRecordCount:'1'
+      spatialRel:'esriSpatialRelIntersects', distance:'3', units:'Kilometers',
+      outFields: `${FIELD_NAME}`, returnGeometry:'false',
+      f:'json', resultRecordCount:'1'
     });
     const data = await fetchArcGIS(LAYER_MUNICIPIOS, params);
     if(data.features && data.features.length){
       const a = data.features[0].attributes || {};
-      return (a[FIELD_NAME] || a['municipio'] || '').toString().trim();
+      return (a[FIELD_NAME] || '').toString().trim();
     }
     throw new Error('Ponto fora do limite municipal');
   }
 
-  // 2) Pegar mm/24h do MUNICÍPIO no próprio layer 1 (sem LIKE)
   async function getRainForMunicipio(muni){
     const where = `UPPER(${FIELD_NAME})='${muni.toUpperCase()}'`;
     const params = new URLSearchParams({
-      where, outFields:`${FIELD_MM24},${FIELD_NAME},municipio,ultima_leitura_data_hora`,
+      where, outFields:`${FIELD_MM24},${FIELD_NAME},ultima_leitura_data_hora`,
       returnGeometry:'false', resultRecordCount:'1', f:'json'
     });
     const data = await fetchArcGIS(LAYER_MUNICIPIOS, params);
     if(data.features && data.features.length){
       const a = data.features[0].attributes || {};
-      return {
-        muni: a[FIELD_NAME] || a['municipio'] || muni,
-        mm24: Number(a[FIELD_MM24] ?? 0),
-        ts:   a.ultima_leitura_data_hora || new Date()
-      };
+      return { muni: a[FIELD_NAME] || muni, mm24: Number(a[FIELD_MM24] ?? 0), ts: a.ultima_leitura_data_hora || new Date() };
     }
     throw new Error('Município não encontrado no layer 1');
   }
@@ -230,38 +255,27 @@
       if (mm24 > 120) land = 'orange';
       else if (mm24 > 80) land = 'yellow';
 
-      setState({
-        river_level: state.river_level,
-        rain_mm_24h: mm24,
-        landslide_risk: land,
-        ts: tsRow
-      });
-    }catch(e){
-      console.warn('[APAC]', e);
-    }
+      setState({ river_level: state.river_level, rain_mm_24h: mm24, landslide_risk: land, ts: tsRow });
+    }catch(e){ console.warn('[APAC]', e); }
   }
 
-  // ===== Geolocalização (HTTPS/local) =====
   const CAN_GEO = (location.protocol === 'https:' || location.hostname === 'localhost');
   async function geolocateAndSetMunicipio(){
     if(!CAN_GEO || !('geolocation' in navigator)) return;
     try{
-      btnLocate.textContent = 'Localizando…';
-      btnLocate.disabled = true;
+      btnLocate.textContent = 'Localizando…'; btnLocate.disabled = true;
       const pos = await new Promise((res,rej)=>{
         navigator.geolocation.getCurrentPosition(res, rej, { enableHighAccuracy:false, maximumAge:600000, timeout:12000 });
       });
       const { latitude, longitude } = pos.coords;
       const muni = await getMunicipioByPoint(latitude, longitude);
       if (muni){
-        MUNICIPIO = muni;
+        MUNICIPIO = muni; muniNameEl.textContent = muni;
         localStorage.setItem('apac_muni', muni);
-        muniNameEl.textContent = muni;
         await atualizarChuva();
         btnLocate.style.display='none';
       } else {
-        btnLocate.textContent = 'Tentar novamente';
-        btnLocate.disabled = false;
+        btnLocate.textContent = 'Tentar novamente'; btnLocate.disabled=false;
       }
     }catch(e){
       console.warn('Geo falhou/negada:', e);
@@ -270,19 +284,15 @@
     }
   }
 
-  // ===== Inicial =====
+  /* ======= Inicial ======= */
   muniNameEl.textContent = MUNICIPIO;
   setState(state);
   atualizarChuva();
-  geolocateAndSetMunicipio(); // pega município por polígono (Layer 1)
+  if (CAN_GEO) btnLocate.addEventListener('click', geolocateAndSetMunicipio);
 
-  setInterval(atualizarChuva, UPDATE_MIN*60*1000);
-  randomSim();
-  setInterval(randomSim, TICK_SECONDS*1000);
-
-  // eventos
+  setInterval(atualizarChuva, UPDATE_MIN*60*1000);   // refresh periódico
+  randomSim(); setInterval(randomSim, TICK_SECONDS*1000);
   btnSwap.addEventListener('click', randomSim);
-  btnLocate.addEventListener('click', geolocateAndSetMunicipio);
 })();
 </script>
 </body>
