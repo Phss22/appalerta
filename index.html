@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8" />
+  <title>Alerta do Rio</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root{
+      --ok:#2e7d32; --yellow:#f9a825; --orange:#ef6c00; --text:#fff;
+      --center-top:30%;
+      --glass-bg1:rgba(255,255,255,.35);
+      --glass-bg2:rgba(255,255,255,.22);
+      --glass-brd:rgba(255,255,255,.38);
+      --bg-bright:1.12;
+    }
+    body{ margin:0; background:#0b0f14; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial; color:var(--text); }
+    .stage{ min-height:100vh; display:grid; place-items:center; padding:16px; }
+    .app{
+      width:390px; height:780px; position:relative; overflow:hidden; border-radius:28px;
+      box-shadow:0 20px 60px rgba(0,0,0,.35), 0 2px 10px rgba(0,0,0,.25); background:#000;
+    }
+    @media (max-width:480px){ .app{ width:100vw; height:100vh; border-radius:0; box-shadow:none; } }
+
+    .bg{ position:absolute; inset:0; background:#000 center/cover no-repeat;
+         filter: brightness(var(--bg-bright)) contrast(1.05) saturate(1.06); }
+    .scrim{ position:absolute; inset:0; background:linear-gradient(180deg,rgba(0,0,0,.10),rgba(0,0,0,.35)); }
+
+    /* TOPO: agora lado a lado */
+    /* TOPO: lado a lado e sempre dentro da tela */
+    .hud{
+    position:absolute;
+    left:12px; right:12px; top:12px;  /* um pouco mais de “respiro” */
+    display:flex;
+    }
+    .widgets{
+    /* usa grid 2 colunas que se ajusta ao espaço */
+    display:grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap:8px;
+    width:100%;             /* garante que ocupe a largura disponível */
+    box-sizing:border-box;
+    }
+    .mini{
+    min-width:auto;         /* permite encolher sem “vazar” */
+    }
+    /* Texto central */
+    .center{
+      position:absolute; left:50%; top:var(--center-top); transform:translate(-50%,-50%);
+      width:100%; display:flex; justify-content:center; padding:0 16px; pointer-events:none; z-index:3;
+    }
+    .river{ text-align:center; --shadow:0 2px 6px rgba(0,0,0,.65), 0 0 2px rgba(0,0,0,.6); }
+    .icon{ font-size:48px; filter:drop-shadow(0 2px 6px rgba(0,0,0,.5)); }
+    .label{ margin-top:6px; font-size:14px; color:#e9f1fb; text-shadow:var(--shadow); letter-spacing:.2px; }
+    .status{ margin-top:2px; font-size:24px; font-weight:900; text-shadow:var(--shadow); }
+    .status.ok{ color:var(--ok); } .status.yellow{ color:var(--yellow); } .status.orange{ color:var(--orange); }
+    .msg{ margin-top:6px; font-size:14px; color:#f0f6ff; opacity:.95; text-shadow:var(--shadow); }
+
+    .bottom{
+      position:absolute; inset:auto 16px 14px 16px; display:flex; justify-content:space-between; align-items:center; gap:10px; z-index:4;
+    }
+    .btn{ border:0; padding:10px 14px; border-radius:12px; background:#1565c0; color:#fff; font-weight:700; cursor:pointer; box-shadow:0 6px 18px rgba(0,0,0,.25);}
+    .btn:active{ transform:translateY(1px); }
+    .ts{ font-size:11px; color:#e7eef6; text-shadow:0 1px 2px rgba(0,0,0,.55); }
+
+    #toast{ position:absolute; left:50%; transform:translateX(-50%); bottom:70px; background:#ffebee; color:#b71c1c;
+            border:1px solid #ffcdd2; padding:8px 10px; border-radius:10px; font-size:12px; display:none; box-shadow:0 6px 20px rgba(0,0,0,.2); z-index:5; }
+  </style>
+</head>
+<body>
+  <div class="stage">
+    <div class="app">
+      <div class="bg" id="bg"></div>
+      <div class="scrim"></div>
+
+      <div class="hud">
+        <div class="widgets">
+          <div class="mini"><div class="t">☔ Chuva nas últimas 24h</div><div class="s"><span id="rainVal">0.0</span> mm</div></div>
+          <div class="mini"><div class="t">⛰️ Risco de deslizamento</div><div class="s" id="landText">Nenhum</div></div>
+        </div>
+      </div>
+
+      <div class="center">
+        <div class="river" id="riverCard">
+          <div class="icon" id="riverIcon">💧</div>
+          <div class="label">Nível do rio</div>
+          <div class="status ok" id="riverStatus">Normal</div>
+          <div class="msg" id="riverMsg">Tudo tranquilo por enquanto.</div>
+        </div>
+      </div>
+
+      <div class="bottom">
+        <button class="btn" id="btnSwap">Forçar troca</button>
+        <div class="ts" id="ts">Atualizado em: —</div>
+      </div>
+
+      <div id="toast"></div>
+    </div>
+  </div>
+
+<script defer>
+(function(){
+  const TICK_SECONDS = 30;
+  const bg = document.getElementById('bg');
+  const toast = document.getElementById('toast');
+
+  const BG_BASE = { none:'joana_normal', yellow:'joana_alerta_amarelo', orange:'joana_alerta_laranja' };
+  const EXT = ['.jpg','.jpeg','.png',''];
+
+  function showToast(msg){ toast.textContent=msg; toast.style.display='block'; setTimeout(()=>toast.style.display='none',2600); }
+  function resolveImage(base, cb){
+    let i=0; const tryNext=()=>{ if(i>=EXT.length){ showToast(`Não achei imagem: ${base}(.jpg/.jpeg/.png)`); return; }
+      const src=`${base}${EXT[i++]}?v=${Date.now()}`; const im=new Image(); im.onload=()=>cb(src); im.onerror=tryNext; im.src=src; };
+    tryNext();
+  }
+  function setBackground(level){ resolveImage(BG_BASE[level]||BG_BASE.none, (src)=>{ bg.style.backgroundImage=`url("${src}")`; }); }
+
+  const riverIcon = document.getElementById('riverIcon');
+  const riverStatus = document.getElementById('riverStatus');
+  const riverMsg = document.getElementById('riverMsg');
+  const rainVal = document.getElementById('rainVal');
+  const landText = document.getElementById('landText');
+  const ts = document.getElementById('ts');
+  const btnSwap = document.getElementById('btnSwap');
+
+  let state = { river_level:'none', rain_mm_24h:0, landslide_risk:'none', ts:new Date() };
+
+  function setState(s){
+    state = s;
+    setBackground(state.river_level);
+
+    const map = {
+      none:{icon:'💧',label:'Normal',cls:'ok',msg:'Tudo tranquilo por enquanto.'},
+      yellow:{icon:'⚠️',label:'ALERTA AMARELO',cls:'yellow',msg:'Atenção! Nível elevado. Fique em alerta.'},
+      orange:{icon:'⚠️',label:'ALERTA LARANJA',cls:'orange',msg:'Risco moderado/alto. Evite áreas sujeitas a alagamento.'}
+    };
+    const m = map[state.river_level]||map.none;
+
+    riverIcon.textContent = m.icon;
+    riverStatus.className = 'status ' + m.cls;
+    riverStatus.textContent = m.label;
+    riverMsg.textContent = m.msg;
+
+    rainVal.textContent = state.rain_mm_24h.toFixed(1);
+    landText.textContent = {none:'Nenhum',yellow:'AMARELO — monitore encostas.',orange:'LARANJA — evite áreas de risco.'}[state.landslide_risk]||'Nenhum';
+
+    ts.textContent = 'Atualizado em: ' + new Date(state.ts).toLocaleString('pt-BR');
+  }
+
+  const levels=['none','yellow','orange'];
+  const nextLevel = l => levels[(levels.indexOf(l)+1)%levels.length];
+
+  function randomSim(){
+    const next = nextLevel(state.river_level);
+    const rain = Math.random()*150;
+    const land = rain>120?'orange':(rain>80?'yellow':'none');
+    setState({ river_level:next, rain_mm_24h:rain, landslide_risk:land, ts:new Date() });
+  }
+
+  setState(state);
+  randomSim();
+  setInterval(randomSim, TICK_SECONDS*1000);
+  btnSwap.addEventListener('click', randomSim);
+})();
+</script>
+</body>
+</html>
