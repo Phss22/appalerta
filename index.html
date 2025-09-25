@@ -8,9 +8,6 @@
     :root{
       --ok:#2e7d32; --yellow:#f9a825; --orange:#ef6c00; --text:#fff;
       --center-top:30%;
-      --glass-bg1:rgba(255,255,255,.35);
-      --glass-bg2:rgba(255,255,255,.22);
-      --glass-brd:rgba(255,255,255,.38);
       --bg-bright:1.12;
     }
     body{ margin:0; background:#0b0f14; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial; color:var(--text); }
@@ -25,25 +22,23 @@
          filter: brightness(var(--bg-bright)) contrast(1.05) saturate(1.06); }
     .scrim{ position:absolute; inset:0; background:linear-gradient(180deg,rgba(0,0,0,.10),rgba(0,0,0,.35)); }
 
-    /* TOPO: agora lado a lado */
-    /* TOPO: lado a lado e sempre dentro da tela */
-    .hud{
-    position:absolute;
-    left:12px; right:12px; top:12px;  /* um pouco mais de “respiro” */
-    display:flex;
-    }
+    /* TOPO: dois cards lado a lado e sempre dentro da tela */
+    .hud{ position:absolute; left:12px; right:12px; top:12px; display:flex; }
     .widgets{
-    /* usa grid 2 colunas que se ajusta ao espaço */
-    display:grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap:8px;
-    width:100%;             /* garante que ocupe a largura disponível */
-    box-sizing:border-box;
+      display:grid; grid-template-columns: repeat(2, minmax(0,1fr));
+      gap:8px; width:100%; box-sizing:border-box;
     }
-    .mini{
-    min-width:auto;         /* permite encolher sem “vazar” */
+    .mini{ min-width:auto; padding:10px 12px; border-radius:12px;
+           backdrop-filter:blur(8px); background:linear-gradient(135deg,rgba(255,255,255,.35),rgba(255,255,255,.22));
+           border:1px solid rgba(255,255,255,.35); box-shadow:0 6px 24px rgba(0,0,0,.18); }
+    .mini .t{ font-size:12px; font-weight:700; margin:0 0 2px; color:#0f1720; }
+    .mini .s{ font-size:12px; color:#2d3a45; white-space:pre-line; }
+
+    @media (max-width:360px){
+      .widgets{ grid-template-columns: 1fr; }
     }
-    /* Texto central */
+
+    /* Texto central (sem caixa) */
     .center{
       position:absolute; left:50%; top:var(--center-top); transform:translate(-50%,-50%);
       width:100%; display:flex; justify-content:center; padding:0 16px; pointer-events:none; z-index:3;
@@ -74,8 +69,14 @@
 
       <div class="hud">
         <div class="widgets">
-          <div class="mini"><div class="t">☔ Chuva nas últimas 24h</div><div class="s"><span id="rainVal">0.0</span> mm</div></div>
-          <div class="mini"><div class="t">⛰️ Risco de deslizamento</div><div class="s" id="landText">Nenhum</div></div>
+          <div class="mini">
+            <div class="t">☔ Chuva nas últimas 24h</div>
+            <div class="s"><span id="rainVal">—</span> mm</div>
+          </div>
+          <div class="mini">
+            <div class="t">⛰️ Risco de deslizamento</div>
+            <div class="s" id="landText">Carregando…</div>
+          </div>
         </div>
       </div>
 
@@ -99,30 +100,42 @@
 
 <script defer>
 (function(){
-  const TICK_SECONDS = 30;
-  const bg = document.getElementById('bg');
-  const toast = document.getElementById('toast');
+  // ===== CONFIGURAÇÃO APAC =====
+  // Troque pela URL da camada de chuva (termina em /FeatureServer/0)
+  const SERVICE_URL     = 'https://geoportal.apac.pe.gov.br/server/rest/services/Hosted/EXEMPLO_CAMADA/FeatureServer/0';
+  const FIELD_MUNICIPIO = 'municipio';   // ajuste pro nome exato do campo do município (ex.: MUNICIPIO)
+  const APAC_MUNICIPIO  = 'RECIFE';      // município desejado
+  const UPDATE_MIN      = 5;             // frequência de atualização (min)
+  const USE_PROXY       = false;         // se der CORS, crie /api/apac-rain.js e troque para true
 
-  const BG_BASE = { none:'joana_normal', yellow:'joana_alerta_amarelo', orange:'joana_alerta_laranja' };
-  const EXT = ['.jpg','.jpeg','.png',''];
+  // ===== IMAGENS DA JOANA (somente .jpg) =====
+  const BG_IMAGES = {
+    none:   'joana_normal.jpg',
+    yellow: 'joana_alerta_amarelo.jpg',
+    orange: 'joana_alerta_laranja.jpg'
+  };
+
+  // ===== CONFIG SIMULAÇÃO =====
+  const TICK_SECONDS = 30;               // alterna o nível do rio (fotos/olhos)
+  const bg   = document.getElementById('bg');
+  const toast= document.getElementById('toast');
 
   function showToast(msg){ toast.textContent=msg; toast.style.display='block'; setTimeout(()=>toast.style.display='none',2600); }
-  function resolveImage(base, cb){
-    let i=0; const tryNext=()=>{ if(i>=EXT.length){ showToast(`Não achei imagem: ${base}(.jpg/.jpeg/.png)`); return; }
-      const src=`${base}${EXT[i++]}?v=${Date.now()}`; const im=new Image(); im.onload=()=>cb(src); im.onerror=tryNext; im.src=src; };
-    tryNext();
+  function setBackground(level){
+    const src = BG_IMAGES[level] || BG_IMAGES.none;
+    bg.style.backgroundImage = `url("${src}?v=${Date.now()}")`; // cache-buster
   }
-  function setBackground(level){ resolveImage(BG_BASE[level]||BG_BASE.none, (src)=>{ bg.style.backgroundImage=`url("${src}")`; }); }
 
-  const riverIcon = document.getElementById('riverIcon');
-  const riverStatus = document.getElementById('riverStatus');
-  const riverMsg = document.getElementById('riverMsg');
-  const rainVal = document.getElementById('rainVal');
-  const landText = document.getElementById('landText');
-  const ts = document.getElementById('ts');
-  const btnSwap = document.getElementById('btnSwap');
+  // UI refs
+  const riverIcon  = document.getElementById('riverIcon');
+  const riverStatus= document.getElementById('riverStatus');
+  const riverMsg   = document.getElementById('riverMsg');
+  const rainVal    = document.getElementById('rainVal');
+  const landText   = document.getElementById('landText');
+  const ts         = document.getElementById('ts');
+  const btnSwap    = document.getElementById('btnSwap');
 
-  let state = { river_level:'none', rain_mm_24h:0, landslide_risk:'none', ts:new Date() };
+  let state = { river_level:'none', rain_mm_24h:NaN, landslide_risk:'none', ts:new Date() };
 
   function setState(s){
     state = s;
@@ -140,7 +153,9 @@
     riverStatus.textContent = m.label;
     riverMsg.textContent = m.msg;
 
-    rainVal.textContent = state.rain_mm_24h.toFixed(1);
+    if (!Number.isNaN(state.rain_mm_24h)) {
+      rainVal.textContent = Number(state.rain_mm_24h).toFixed(1);
+    }
     landText.textContent = {none:'Nenhum',yellow:'AMARELO — monitore encostas.',orange:'LARANJA — evite áreas de risco.'}[state.landslide_risk]||'Nenhum';
 
     ts.textContent = 'Atualizado em: ' + new Date(state.ts).toLocaleString('pt-BR');
@@ -149,14 +164,65 @@
   const levels=['none','yellow','orange'];
   const nextLevel = l => levels[(levels.indexOf(l)+1)%levels.length];
 
+  // Simula só o nível do rio (fotos/olhos)
   function randomSim(){
     const next = nextLevel(state.river_level);
-    const rain = Math.random()*150;
-    const land = rain>120?'orange':(rain>80?'yellow':'none');
-    setState({ river_level:next, rain_mm_24h:rain, landslide_risk:land, ts:new Date() });
+    setState({
+      river_level: next,
+      rain_mm_24h: state.rain_mm_24h,
+      landslide_risk: state.landslide_risk,
+      ts: new Date()
+    });
   }
 
+  // ===== Integração APAC (ArcGIS FeatureServer) =====
+  async function getApacRain({ municipio = APAC_MUNICIPIO, limit = 1 } = {}) {
+    const params = new URLSearchParams({
+      where: `UPPER(${FIELD_MUNICIPIO})='${(municipio||'').toUpperCase()}'`,
+      outFields: '*',
+      orderByFields: 'ultima_atualizacao DESC',
+      resultRecordCount: String(limit),
+      returnGeometry: 'false',
+      f: 'json'
+    });
+    const base = USE_PROXY ? '/api/apac-rain' : `${SERVICE_URL}/query`;
+    const url = `${base}?${params.toString()}`;
+
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('Falha ao consultar a APAC');
+    const data = await res.json();
+    if (!data.features || !data.features.length) throw new Error('Sem dados para este município');
+    return data.features.map(f => f.attributes);
+  }
+
+  async function atualizarChuva() {
+    try {
+      const [row] = await getApacRain({ municipio: APAC_MUNICIPIO, limit: 1 });
+      const mm =
+        row.mm_24h ?? row.acum_24h ?? row.acumulado_24h ?? row.prec24h ?? row.valor ?? 0;
+
+      let land = 'none';
+      if (mm > 120) land = 'orange';
+      else if (mm > 80) land = 'yellow';
+
+      const tsRow = row.ultima_atualizacao || Date.now();
+
+      setState({
+        river_level: state.river_level,
+        rain_mm_24h: Number(mm),
+        landslide_risk: land,
+        ts: tsRow
+      });
+    } catch (e) {
+      console.warn(e);
+      showToast('Não consegui ler a chuva da APAC agora.');
+    }
+  }
+
+  // Inicial
   setState(state);
+  atualizarChuva();
+  setInterval(atualizarChuva, 5*60*1000);
   randomSim();
   setInterval(randomSim, TICK_SECONDS*1000);
   btnSwap.addEventListener('click', randomSim);
