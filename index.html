@@ -64,8 +64,6 @@
     .btn{ border:0; padding:10px 14px; border-radius:12px; background:#1565c0; color:#fff; font-weight:700; cursor:pointer; box-shadow:0 6px 18px rgba(0,0,0,.25);}
     .btn:active{ transform:translateY(1px); }
     .ts{ font-size:11px; color:#e7eef6; text-shadow:0 1px 2px rgba(0,0,0,.55); }
-
-    .hint{ font-size:11px; color:#dbe6f4; margin-top:6px; }
   </style>
 </head>
 <body>
@@ -80,12 +78,14 @@
             <div class="t">☔ Chuva nas últimas 24h</div>
             <div class="s">
               <span id="rainVal">—</span> mm
-              <br>em <strong id="muniName">detectando…</strong>
-              <div id="geoHint" class="hint" style="display:none;"></div>
+              <br>em <strong id="muniName">carregando…</strong>
             </div>
             <button id="btnLocate" class="mini-btn">Usar minha localização</button>
           </div>
-          <div class="mini"><div class="t">⛰️ Risco de deslizamento</div><div class="s" id="landText">Carregando…</div></div>
+          <div class="mini">
+            <div class="t">⛰️ Risco de deslizamento</div>
+            <div class="s" id="landText">Carregando…</div>
+          </div>
         </div>
       </div>
 
@@ -100,32 +100,26 @@
 
       <div class="bottom">
         <button class="btn" id="btnSwap">Forçar troca</button>
-        <div class="ts" id="ts">Atualizado em: — • v3</div>
+        <div class="ts" id="ts">Atualizado em: — • v4</div>
       </div>
     </div>
   </div>
 
 <script defer>
 (function(){
-  console.log('Alerta do Rio — geoloc v3');
+  console.log('Alerta do Rio — geoloc v4 (município por polígono)');
   const TICK_SECONDS = 30;
 
-  // ========= APAC =========
-  const APAC_ENABLED     = true;
-  const USE_PROXY        = true; // se publicar com /api/apac-rain.js na Vercel
-  const SERVICE_URL      = 'https://geoportal.apac.pe.gov.br/server/rest/services/met_volume_acumulado_chuva_24hs/MapServer/3';
-  const FIELD_MUNICIPIO  = 'municipio';
-  let   APAC_MUNICIPIO   = localStorage.getItem('apac_muni') || 'NAZARÉ DA MATA';
-  const UPDATE_MIN       = 5;
-  const RAIN_FIELDS      = ['horas_24','mm_24h','acum_24h','acumulado_24h','prec24h','chuva_24h','valor'];
+  // ===== APAC por camadas corretas =====
+  const MAP_BASE          = 'https://geoportal.apac.pe.gov.br/server/rest/services/met_volume_acumulado_chuva_24hs/MapServer';
+  const LAYER_MUNICIPIOS  = 1; // polígono municipal com nm_mun + horas_24
+  const USE_PROXY         = true; // true se estiver com /api/apac-rain.js na Vercel
+  const FIELD_NAME        = 'nm_mun';     // nome do município no layer 1
+  const FIELD_MM24        = 'horas_24';   // acumulado 24h no layer 1
+  let   MUNICIPIO         = localStorage.getItem('apac_muni') || 'NAZARÉ DA MATA';
+  const UPDATE_MIN        = 5;
 
-  // ========= Geolocalização =========
-  const muniNameEl = document.getElementById('muniName');
-  const btnLocate  = document.getElementById('btnLocate');
-  const geoHint    = document.getElementById('geoHint');
-  const CAN_GEO    = (location.protocol === 'https:' || location.hostname === 'localhost');
-
-  // ======= FUNDO =======
+  // ===== Fundo (seu esquema, sem mexer nos arquivos) =====
   const bg = document.getElementById('bg');
   const BG_BASE = { none:'joana_normal', yellow:'joana_alerta_amarelo', orange:'joana_alerta_laranja' };
   const EXT = ['.jpg','.jpeg','.png',''];
@@ -137,28 +131,28 @@
   }
   function setBackground(level){ resolveImage(BG_BASE[level]||BG_BASE.none, (src)=>{ if(src) bg.style.backgroundImage=`url("${src}")`; }); }
 
-  // ======= UI refs =======
+  // ===== UI refs =====
   const riverIcon = document.getElementById('riverIcon');
   const riverStatus = document.getElementById('riverStatus');
   const riverMsg = document.getElementById('riverMsg');
   const rainVal = document.getElementById('rainVal');
   const landText = document.getElementById('landText');
+  const muniNameEl = document.getElementById('muniName');
   const ts = document.getElementById('ts');
   const btnSwap = document.getElementById('btnSwap');
+  const btnLocate = document.getElementById('btnLocate');
 
   let state = { river_level:'none', rain_mm_24h:NaN, landslide_risk:'none', ts:new Date() };
 
   function setState(s){
     state = s;
     setBackground(state.river_level);
-
     const map = {
       none:{icon:'💧',label:'Normal',cls:'ok',msg:'Tudo tranquilo por enquanto.'},
       yellow:{icon:'⚠️',label:'ALERTA AMARELO',cls:'yellow',msg:'Atenção! Nível elevado. Fique em alerta.'},
       orange:{icon:'⚠️',label:'ALERTA LARANJA',cls:'orange',msg:'Risco moderado/alto. Evite áreas sujeitas a alagamento.'}
     };
     const m = map[state.river_level]||map.none;
-
     riverIcon.textContent = m.icon;
     riverStatus.className = 'status ' + m.cls;
     riverStatus.textContent = m.label;
@@ -168,151 +162,119 @@
       rainVal.textContent = Number(state.rain_mm_24h).toFixed(1);
     }
     landText.textContent = {none:'Nenhum',yellow:'AMARELO — monitore encostas.',orange:'LARANJA — evite áreas de risco.'}[state.landslide_risk]||'Nenhum';
-
     ts.textContent = 'Atualizado em: ' + new Date(state.ts).toLocaleString('pt-BR');
   }
 
   const levels=['none','yellow','orange'];
   const nextLevel = l => levels[(levels.indexOf(l)+1)%levels.length];
-
   function randomSim(){
     const next = nextLevel(state.river_level);
     setState({ river_level:next, rain_mm_24h:state.rain_mm_24h, landslide_risk:state.landslide_risk, ts:new Date() });
   }
 
-  // ======= ArcGIS helpers =======
-  function pickField(row, list){ for(const k of list){ if(k in row && row[k]!=null) return row[k]; } return null; }
-
-  async function fetchArcGIS(params){
+  // ===== ArcGIS helper =====
+  async function fetchArcGIS(layer, params){
     const base = USE_PROXY
-      ? `/api/apac-rain?service=${encodeURIComponent(SERVICE_URL)}&`
-      : `${SERVICE_URL}/query?`;
+      ? `/api/apac-rain?service=${encodeURIComponent(`${MAP_BASE}/${layer}`)}&`
+      : `${MAP_BASE}/${layer}/query?`;
     const url = base + params.toString();
     const r = await fetch(url);
     if(!r.ok) throw new Error('APAC HTTP '+r.status);
     return r.json();
   }
 
+  // 1) Descobrir município pelo polígono (layer 1)
   async function getMunicipioByPoint(lat, lon){
     const geometry = JSON.stringify({ x: lon, y: lat, spatialReference:{ wkid:4326 } });
     const params = new URLSearchParams({
       geometry, geometryType:'esriGeometryPoint', inSR:'4326',
       spatialRel:'esriSpatialRelIntersects',
-      outFields: '*', returnGeometry:'false', f:'json', resultRecordCount:'1'
+      outFields: `${FIELD_NAME},municipio`,
+      returnGeometry:'false', f:'json', resultRecordCount:'1'
     });
-    const data = await fetchArcGIS(params);
+    const data = await fetchArcGIS(LAYER_MUNICIPIOS, params);
     if(data.features && data.features.length){
-      const attrs = data.features[0].attributes || {};
-      const muni  = attrs[FIELD_MUNICIPIO] || attrs['MUNICIPIO'] || '';
-      return String(muni || '').trim();
+      const a = data.features[0].attributes || {};
+      return (a[FIELD_NAME] || a['municipio'] || '').toString().trim();
     }
-    throw new Error('Municipio não encontrado na camada');
+    throw new Error('Ponto fora do limite municipal');
   }
 
-  async function getApacRain(municipio){
-    const attempts = [
-      `UPPER(${FIELD_MUNICIPIO})='${municipio.toUpperCase()}'`,
-      `UPPER(${FIELD_MUNICIPIO}) LIKE '${municipio.toUpperCase().slice(0,5)}%'`
-    ];
-    for(const where of attempts){
-      const params = new URLSearchParams({
-        where, outFields:'*', returnGeometry:'false', resultRecordCount:'1', f:'json'
-      });
-      const data = await fetchArcGIS(params);
-      if(data.features && data.features.length){ return data.features[0].attributes; }
+  // 2) Pegar mm/24h do MUNICÍPIO no próprio layer 1 (sem LIKE)
+  async function getRainForMunicipio(muni){
+    const where = `UPPER(${FIELD_NAME})='${muni.toUpperCase()}'`;
+    const params = new URLSearchParams({
+      where, outFields:`${FIELD_MM24},${FIELD_NAME},municipio,ultima_leitura_data_hora`,
+      returnGeometry:'false', resultRecordCount:'1', f:'json'
+    });
+    const data = await fetchArcGIS(LAYER_MUNICIPIOS, params);
+    if(data.features && data.features.length){
+      const a = data.features[0].attributes || {};
+      return {
+        muni: a[FIELD_NAME] || a['municipio'] || muni,
+        mm24: Number(a[FIELD_MM24] ?? 0),
+        ts:   a.ultima_leitura_data_hora || new Date()
+      };
     }
-    throw new Error('Sem dados para o município');
+    throw new Error('Município não encontrado no layer 1');
   }
 
   async function atualizarChuva(){
-    if(!APAC_ENABLED) return;
     try{
-      const row = await getApacRain(APAC_MUNICIPIO);
-      const mm = Number(pickField(row, RAIN_FIELDS)) || 0;
+      const { muni, mm24, ts:tsRow } = await getRainForMunicipio(MUNICIPIO);
+      MUNICIPIO = muni;
+      localStorage.setItem('apac_muni', muni);
+      muniNameEl.textContent = muni;
 
       let land = 'none';
-      if (mm > 120) land = 'orange';
-      else if (mm > 80) land = 'yellow';
+      if (mm24 > 120) land = 'orange';
+      else if (mm24 > 80) land = 'yellow';
 
       setState({
         river_level: state.river_level,
-        rain_mm_24h: mm,
+        rain_mm_24h: mm24,
         landslide_risk: land,
-        ts: row.ultima_leitura_data_hora || row.datahora || row.data || new Date()
+        ts: tsRow
       });
-    }catch(err){
-      console.warn('[APAC]', err);
+    }catch(e){
+      console.warn('[APAC]', e);
     }
   }
 
-  // ======= Geolocalização (auto + botão) =======
-  function setMunicipio(m){
-    APAC_MUNICIPIO = m;
-    localStorage.setItem('apac_muni', m);
-    muniNameEl.textContent = m;
-  }
-
-  async function geolocateAndSetMunicipio(manual=false){
-    if(!CAN_GEO){
-      geoHint.style.display='block';
-      geoHint.textContent = 'Ative HTTPS para usar a localização';
-      return;
-    }
-    if(!('geolocation' in navigator)) {
-      geoHint.style.display='block';
-      geoHint.textContent = 'Seu navegador não suporta geolocalização';
-      return;
-    }
-    btnLocate.disabled = true;
-    btnLocate.textContent = 'Localizando…';
-    geoHint.style.display = 'none';
-
+  // ===== Geolocalização (HTTPS/local) =====
+  const CAN_GEO = (location.protocol === 'https:' || location.hostname === 'localhost');
+  async function geolocateAndSetMunicipio(){
+    if(!CAN_GEO || !('geolocation' in navigator)) return;
     try{
-      const pos = await new Promise((resolve, reject)=>{
-        navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy:false, maximumAge:600000, timeout:12000 });
+      btnLocate.textContent = 'Localizando…';
+      btnLocate.disabled = true;
+      const pos = await new Promise((res,rej)=>{
+        navigator.geolocation.getCurrentPosition(res, rej, { enableHighAccuracy:false, maximumAge:600000, timeout:12000 });
       });
       const { latitude, longitude } = pos.coords;
       const muni = await getMunicipioByPoint(latitude, longitude);
-      if(muni){
-        setMunicipio(muni);
+      if (muni){
+        MUNICIPIO = muni;
+        localStorage.setItem('apac_muni', muni);
+        muniNameEl.textContent = muni;
         await atualizarChuva();
-        btnLocate.style.display='none'; // esconde quando deu certo
+        btnLocate.style.display='none';
       } else {
         btnLocate.textContent = 'Tentar novamente';
-        geoHint.style.display='block';
-        geoHint.textContent = 'Não consegui identificar o município.';
+        btnLocate.disabled = false;
       }
     }catch(e){
       console.warn('Geo falhou/negada:', e);
-      btnLocate.textContent = (e && e.code === 1)
-        ? 'Permitir localização nas configurações'
-        : 'Tentar novamente';
+      btnLocate.textContent = (e && e.code === 1) ? 'Permitir localização nas configurações' : 'Tentar novamente';
       btnLocate.disabled = false;
-      geoHint.style.display='block';
-      geoHint.textContent = (e && e.code === 1)
-        ? 'Permissão negada. Libere a localização nas configurações do navegador.'
-        : 'Não foi possível obter a localização agora.';
-      // mantém município atual
-      muniNameEl.textContent = APAC_MUNICIPIO;
     }
   }
 
-  function initGeoUI(){
-    // botão visível por padrão; some sozinho se a permissão já for concedida
-    btnLocate.style.display = 'inline-block';
-    if (!CAN_GEO) {
-      geoHint.style.display='block';
-      geoHint.textContent = 'Abra em HTTPS (ex.: Vercel) para usar a localização.';
-    }
-    // se já tem município em cache, mostra
-    muniNameEl.textContent = APAC_MUNICIPIO;
-  }
-
-  // ======= Inicial =======
+  // ===== Inicial =====
+  muniNameEl.textContent = MUNICIPIO;
   setState(state);
-  initGeoUI();
-  atualizarChuva();                     // usa município atual (cache / fallback)
-  if (CAN_GEO) geolocateAndSetMunicipio(false); // tentativa automática
+  atualizarChuva();
+  geolocateAndSetMunicipio(); // pega município por polígono (Layer 1)
 
   setInterval(atualizarChuva, UPDATE_MIN*60*1000);
   randomSim();
@@ -320,7 +282,7 @@
 
   // eventos
   btnSwap.addEventListener('click', randomSim);
-  btnLocate.addEventListener('click', ()=> geolocateAndSetMunicipio(true));
+  btnLocate.addEventListener('click', geolocateAndSetMunicipio);
 })();
 </script>
 </body>
