@@ -8,7 +8,6 @@ export default async function handler(req, res) {
       f: 'json',
       returnGeometry: 'false',
       outFields: '*',
-      orderByFields: 'ultima_atualizacao DESC',
       resultRecordCount: '1',
       ...rest
     }).toString();
