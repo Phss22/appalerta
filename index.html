@@ -29,16 +29,20 @@
     .hud{ position:absolute; left:12px; right:12px; top:12px; }
     .widgets{
       display:grid;
-      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-      gap:8px; width:100%;
+      /* ↑ chips um pouco mais largos */
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap:10px;
+      width:100%;
     }
     .mini{
-      padding:10px 12px; border-radius:12px;
+      /* ↑ mais espaço e altura */
+      padding:12px 14px; border-radius:12px;
+      min-height:60px;
       backdrop-filter:blur(8px);
       background:linear-gradient(135deg,var(--glass-bg1),var(--glass-bg2));
       border:1px solid var(--glass-brd);
       box-shadow:0 8px 22px rgba(0,0,0,.16);
-      color:#0f1720; min-height:54px;
+      color:#0f1720;
       transition:all .18s ease;
     }
     .mini .t{ font-size:12px; font-weight:700; margin:0 0 2px; opacity:.95; }
@@ -52,17 +56,25 @@
     }
     .mini .mini-btn:active{ transform:translateY(1px); }
 
-    /* --- MODO COMPACTO (vira chip) --- */
+    /* --- MODO COMPACTO (chip maiorzinho) --- */
     .mini.compact{
-      padding:6px 10px; min-height:auto;
-      display:flex; align-items:center; gap:8px;
-      border-radius:999px; box-shadow:0 4px 14px rgba(0,0,0,.12);
+      padding:10px 14px;          /* ↑ antes 6px 10px */
+      min-height:auto;
+      display:flex; align-items:center; gap:10px; /* ↑ gap maior */
+      border-radius:14px;         /* um pouco mais quadrado que a pílula */
+      box-shadow:0 6px 18px rgba(0,0,0,.12);
     }
     .mini.compact .t{ display:none; }
-    .mini.compact .s{ display:flex; align-items:center; gap:6px; white-space:nowrap; }
-    .mini.compact .s br{ display:none; }               /* esconde a quebra de linha “em Municipio” */
-    .mini.compact .mini-btn{ display:none; }           /* esconde botão no chip */
-    .pill-ico{ font-size:14px; }
+    .mini.compact .s{
+      display:flex; align-items:center; gap:8px;
+      white-space:nowrap;
+      font-size:13.5px;           /* ↑ fonte maior */
+      line-height:1.25;
+    }
+    .mini.compact .s br{ display:none; }  /* esconde “em\nCarpina” no chip */
+    .mini.compact .mini-btn{ display:none; }
+
+    .pill-ico{ font-size:16px; } /* ↑ ícone maior */
 
     /* Texto central */
     .center{
@@ -90,7 +102,7 @@
 
       <div class="hud">
         <div class="widgets">
-          <!-- Rain -->
+          <!-- Chuva -->
           <div class="mini" id="cardRain">
             <div class="t">☔ Chuva nas últimas 24h</div>
             <div class="s">
@@ -99,7 +111,7 @@
             </div>
             <button id="btnLocate" class="mini-btn">Usar minha localização</button>
           </div>
-          <!-- Landslide -->
+          <!-- Deslizamento -->
           <div class="mini" id="cardLand">
             <div class="t">⛰️ Risco de deslizamento</div>
             <div class="s" id="landText">Carregando…</div>
@@ -118,17 +130,17 @@
 
       <div class="bottom">
         <button class="btn" id="btnSwap">Forçar troca</button>
-        <div class="ts" id="ts">Atualizado em: —</div>
+        <div class="ts" id="ts">Atualizado em: — • chips+</div>
       </div>
     </div>
   </div>
 
 <script defer>
 (function(){
-  console.log('UI compact chips');
+  console.log('UI chips maiores');
   const TICK_SECONDS = 30;
 
-  /* ======= APAC (ajuste aqui se precisar) ======= */
+  /* ======= APAC (camada de municípios) ======= */
   const MAP_BASE          = 'https://geoportal.apac.pe.gov.br/server/rest/services/met_volume_acumulado_chuva_24hs/MapServer';
   const LAYER_MUNICIPIOS  = 1;               // polígono com nm_mun + horas_24
   const FIELD_NAME        = 'nm_mun';
@@ -189,7 +201,7 @@
       orange:'⛔ LARANJA — evite áreas de risco.'
     }[state.landslide_risk] || '⛰️ Nenhum';
 
-    // Compacta automaticamente:
+    // Compacta automaticamente (agora com chip maior):
     cardRain.classList.toggle('compact', Number(state.rain_mm_24h) < 1);
     cardLand.classList.toggle('compact', state.landslide_risk === 'none');
 
