@@ -13,7 +13,7 @@
       --glass-brd:rgba(255,255,255,.38);
       --bg-bright:1.12;
     }
-    body{ margin:0; background:#0b0f14; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial; color:var(--text); }
+    body{ margin:0; background:#0b0f14; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial; color:#fff; }
     .stage{ min-height:100vh; display:grid; place-items:center; padding:16px; }
     .app{
       width:390px; height:780px; position:relative; overflow:hidden; border-radius:28px;
@@ -21,29 +21,25 @@
     }
     @media (max-width:480px){ .app{ width:100vw; height:100vh; border-radius:0; box-shadow:none; } }
 
-    .bg{ position:absolute; inset:0; background:#000 center/cover no-repeat;
-         filter: brightness(var(--bg-bright)) contrast(1.05) saturate(1.06); }
+    .bg{ position:absolute; inset:0; background:#000 center/cover no-repeat; filter: brightness(var(--bg-bright)) contrast(1.05) saturate(1.06); }
     .scrim{ position:absolute; inset:0; background:linear-gradient(180deg,rgba(0,0,0,.10),rgba(0,0,0,.35)); }
 
-    /* TOPO: agora lado a lado */
-    /* TOPO: lado a lado e sempre dentro da tela */
-    .hud{
-    position:absolute;
-    left:12px; right:12px; top:12px;  /* um pouco mais de “respiro” */
-    display:flex;
-    }
+    .hud{ position:absolute; left:12px; right:12px; top:12px; display:flex; }
     .widgets{
-    /* usa grid 2 colunas que se ajusta ao espaço */
-    display:grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap:8px;
-    width:100%;             /* garante que ocupe a largura disponível */
-    box-sizing:border-box;
+      display:grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap:8px; width:100%; box-sizing:border-box;
     }
     .mini{
-    min-width:auto;         /* permite encolher sem “vazar” */
+      min-width:auto; padding:10px 12px; border-radius:12px;
+      backdrop-filter:blur(8px);
+      background:linear-gradient(135deg,var(--glass-bg1),var(--glass-bg2));
+      border:1px solid var(--glass-brd);
+      box-shadow:0 6px 24px rgba(0,0,0,.18);
+      color:#0f1720;
     }
-    /* Texto central */
+    .mini .t{ font-size:12px; font-weight:700; margin:0 0 2px; }
+    .mini .s{ font-size:12px; white-space:pre-line; color:#2d3a45; }
+
     .center{
       position:absolute; left:50%; top:var(--center-top); transform:translate(-50%,-50%);
       width:100%; display:flex; justify-content:center; padding:0 16px; pointer-events:none; z-index:3;
@@ -55,15 +51,10 @@
     .status.ok{ color:var(--ok); } .status.yellow{ color:var(--yellow); } .status.orange{ color:var(--orange); }
     .msg{ margin-top:6px; font-size:14px; color:#f0f6ff; opacity:.95; text-shadow:var(--shadow); }
 
-    .bottom{
-      position:absolute; inset:auto 16px 14px 16px; display:flex; justify-content:space-between; align-items:center; gap:10px; z-index:4;
-    }
+    .bottom{ position:absolute; inset:auto 16px 14px 16px; display:flex; justify-content:space-between; align-items:center; gap:10px; z-index:4; }
     .btn{ border:0; padding:10px 14px; border-radius:12px; background:#1565c0; color:#fff; font-weight:700; cursor:pointer; box-shadow:0 6px 18px rgba(0,0,0,.25);}
     .btn:active{ transform:translateY(1px); }
     .ts{ font-size:11px; color:#e7eef6; text-shadow:0 1px 2px rgba(0,0,0,.55); }
-
-    #toast{ position:absolute; left:50%; transform:translateX(-50%); bottom:70px; background:#ffebee; color:#b71c1c;
-            border:1px solid #ffcdd2; padding:8px 10px; border-radius:10px; font-size:12px; display:none; box-shadow:0 6px 20px rgba(0,0,0,.2); z-index:5; }
   </style>
 </head>
 <body>
@@ -74,8 +65,8 @@
 
       <div class="hud">
         <div class="widgets">
-          <div class="mini"><div class="t">☔ Chuva nas últimas 24h</div><div class="s"><span id="rainVal">0.0</span> mm</div></div>
-          <div class="mini"><div class="t">⛰️ Risco de deslizamento</div><div class="s" id="landText">Nenhum</div></div>
+          <div class="mini"><div class="t">☔ Chuva nas últimas 24h</div><div class="s"><span id="rainVal">—</span> mm</div></div>
+          <div class="mini"><div class="t">⛰️ Risco de deslizamento</div><div class="s" id="landText">Carregando…</div></div>
         </div>
       </div>
 
@@ -92,28 +83,45 @@
         <button class="btn" id="btnSwap">Forçar troca</button>
         <div class="ts" id="ts">Atualizado em: —</div>
       </div>
-
-      <div id="toast"></div>
     </div>
   </div>
 
 <script defer>
 (function(){
   const TICK_SECONDS = 30;
-  const bg = document.getElementById('bg');
-  const toast = document.getElementById('toast');
 
+  // =============== APAC (NAZARÉ DA MATA) ===============
+  const APAC_ENABLED     = true;    // liga a leitura real
+  const USE_PROXY        = true;    // true se publicar na Vercel com /api/apac-rain.js
+  const SERVICE_URL      = 'https://geoportal.apac.pe.gov.br/server/rest/services/met_volume_acumulado_chuva_24hs/MapServer/3';
+  const FIELD_MUNICIPIO  = 'municipio';         // conforme o JSON da camada
+  const APAC_MUNICIPIO   = 'NAZARÉ DA MATA';
+  const UPDATE_MIN       = 5;
+  // lista de possíveis nomes do campo de 24h: inclui 'horas_24' (EXATO dessa camada)
+  const RAIN_FIELDS      = ['horas_24','mm_24h','acum_24h','acumulado_24h','prec24h','chuva_24h','valor'];
+
+  // =============== FUNDO / LAYOUT (seu código) ===============
+  const bg  = document.getElementById('bg');
   const BG_BASE = { none:'joana_normal', yellow:'joana_alerta_amarelo', orange:'joana_alerta_laranja' };
   const EXT = ['.jpg','.jpeg','.png',''];
 
-  function showToast(msg){ toast.textContent=msg; toast.style.display='block'; setTimeout(()=>toast.style.display='none',2600); }
   function resolveImage(base, cb){
-    let i=0; const tryNext=()=>{ if(i>=EXT.length){ showToast(`Não achei imagem: ${base}(.jpg/.jpeg/.png)`); return; }
-      const src=`${base}${EXT[i++]}?v=${Date.now()}`; const im=new Image(); im.onload=()=>cb(src); im.onerror=tryNext; im.src=src; };
+    let i=0;
+    const tryNext=()=>{
+      if(i>=EXT.length){ return cb(null); }
+      const src=`${base}${EXT[i++]}?v=${Date.now()}`;
+      const im=new Image();
+      im.onload = ()=>cb(src);
+      im.onerror = tryNext;
+      im.src = src;
+    };
     tryNext();
   }
-  function setBackground(level){ resolveImage(BG_BASE[level]||BG_BASE.none, (src)=>{ bg.style.backgroundImage=`url("${src}")`; }); }
+  function setBackground(level){
+    resolveImage(BG_BASE[level]||BG_BASE.none, (src)=>{ if(src) bg.style.backgroundImage=`url("${src}")`; });
+  }
 
+  // =============== UI refs ===============
   const riverIcon = document.getElementById('riverIcon');
   const riverStatus = document.getElementById('riverStatus');
   const riverMsg = document.getElementById('riverMsg');
@@ -122,7 +130,7 @@
   const ts = document.getElementById('ts');
   const btnSwap = document.getElementById('btnSwap');
 
-  let state = { river_level:'none', rain_mm_24h:0, landslide_risk:'none', ts:new Date() };
+  let state = { river_level:'none', rain_mm_24h:NaN, landslide_risk:'none', ts:new Date() };
 
   function setState(s){
     state = s;
@@ -140,7 +148,9 @@
     riverStatus.textContent = m.label;
     riverMsg.textContent = m.msg;
 
-    rainVal.textContent = state.rain_mm_24h.toFixed(1);
+    if (!Number.isNaN(state.rain_mm_24h)) {
+      rainVal.textContent = Number(state.rain_mm_24h).toFixed(1);
+    }
     landText.textContent = {none:'Nenhum',yellow:'AMARELO — monitore encostas.',orange:'LARANJA — evite áreas de risco.'}[state.landslide_risk]||'Nenhum';
 
     ts.textContent = 'Atualizado em: ' + new Date(state.ts).toLocaleString('pt-BR');
@@ -151,12 +161,65 @@
 
   function randomSim(){
     const next = nextLevel(state.river_level);
-    const rain = Math.random()*150;
-    const land = rain>120?'orange':(rain>80?'yellow':'none');
-    setState({ river_level:next, rain_mm_24h:rain, landslide_risk:land, ts:new Date() });
+    // risco/chuva reais vêm da APAC; aqui só alterno o fundo
+    setState({ river_level:next, rain_mm_24h:state.rain_mm_24h, landslide_risk:state.landslide_risk, ts:new Date() });
   }
 
+  // =============== APAC: consulta ===============
+  function pickField(row, list){ for(const k of list){ if(k in row && row[k]!=null) return row[k]; } return null; }
+
+  async function fetchArcGIS(params){
+    const base = USE_PROXY
+      ? `/api/apac-rain?service=${encodeURIComponent(SERVICE_URL)}&`
+      : `${SERVICE_URL}/query?`;
+    const url = base + params.toString();
+    const r = await fetch(url);
+    if(!r.ok) throw new Error('APAC HTTP '+r.status);
+    return r.json();
+  }
+
+  async function getApacRain(municipio){
+    // tenta com acento e sem acento (LIKE)
+    const attempts = [
+      `UPPER(${FIELD_MUNICIPIO})='${municipio.toUpperCase()}'`,
+      `UPPER(${FIELD_MUNICIPIO}) LIKE '${municipio.toUpperCase().slice(0,5)}%'`, // NAZAR%
+    ];
+    for(const where of attempts){
+      const params = new URLSearchParams({
+        where, outFields:'*', returnGeometry:'false', resultRecordCount:'1', f:'json'
+      });
+      const data = await fetchArcGIS(params);
+      if(data.features && data.features.length){ return data.features[0].attributes; }
+    }
+    throw new Error('Sem dados para o município');
+  }
+
+  async function atualizarChuva(){
+    if(!APAC_ENABLED) return;
+    try{
+      const row = await getApacRain(APAC_MUNICIPIO);
+      const mm = Number(pickField(row, RAIN_FIELDS)) || 0;
+
+      let land = 'none';
+      if (mm > 120) land = 'orange';
+      else if (mm > 80) land = 'yellow';
+
+      setState({
+        river_level: state.river_level,
+        rain_mm_24h: mm,
+        landslide_risk: land,
+        ts: row.ultima_leitura_data_hora || row.datahora || row.data || new Date()
+      });
+    }catch(err){
+      console.warn('[APAC]', err);
+      // se falhar, mantém o valor anterior e não mostra erro na tela
+    }
+  }
+
+  // inicial
   setState(state);
+  atualizarChuva();
+  setInterval(atualizarChuva, UPDATE_MIN*60*1000);
   randomSim();
   setInterval(randomSim, TICK_SECONDS*1000);
   btnSwap.addEventListener('click', randomSim);
