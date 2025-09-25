@@ -44,7 +44,7 @@
     /* Botão pequeno dentro do card */
     .mini .mini-btn{
       margin-top:6px; font-size:11px; padding:6px 10px; border-radius:999px;
-      border:1px solid rgba(0,0,0,.08); background:rgba(255,255,255,.75);
+      border:1px solid rgba(0,0,0,.08); background:rgba(255,255,255,.78);
       color:#0f1720; cursor:pointer;
     }
     .mini .mini-btn:active{ transform:translateY(1px); }
@@ -64,6 +64,8 @@
     .btn{ border:0; padding:10px 14px; border-radius:12px; background:#1565c0; color:#fff; font-weight:700; cursor:pointer; box-shadow:0 6px 18px rgba(0,0,0,.25);}
     .btn:active{ transform:translateY(1px); }
     .ts{ font-size:11px; color:#e7eef6; text-shadow:0 1px 2px rgba(0,0,0,.55); }
+
+    .hint{ font-size:11px; color:#dbe6f4; margin-top:6px; }
   </style>
 </head>
 <body>
@@ -79,8 +81,9 @@
             <div class="s">
               <span id="rainVal">—</span> mm
               <br>em <strong id="muniName">detectando…</strong>
+              <div id="geoHint" class="hint" style="display:none;"></div>
             </div>
-            <button id="btnLocate" class="mini-btn" style="display:none;">Usar minha localização</button>
+            <button id="btnLocate" class="mini-btn">Usar minha localização</button>
           </div>
           <div class="mini"><div class="t">⛰️ Risco de deslizamento</div><div class="s" id="landText">Carregando…</div></div>
         </div>
@@ -97,28 +100,30 @@
 
       <div class="bottom">
         <button class="btn" id="btnSwap">Forçar troca</button>
-        <div class="ts" id="ts">Atualizado em: —</div>
+        <div class="ts" id="ts">Atualizado em: — • v3</div>
       </div>
     </div>
   </div>
 
 <script defer>
 (function(){
+  console.log('Alerta do Rio — geoloc v3');
   const TICK_SECONDS = 30;
 
   // ========= APAC =========
   const APAC_ENABLED     = true;
-  const USE_PROXY        = true; // true se estiver usando /api/apac-rain.js na Vercel
+  const USE_PROXY        = true; // se publicar com /api/apac-rain.js na Vercel
   const SERVICE_URL      = 'https://geoportal.apac.pe.gov.br/server/rest/services/met_volume_acumulado_chuva_24hs/MapServer/3';
-  const FIELD_MUNICIPIO  = 'municipio';            // conforme a camada
-  let   APAC_MUNICIPIO   = localStorage.getItem('apac_muni') || 'NAZARÉ DA MATA'; // fallback + cache
+  const FIELD_MUNICIPIO  = 'municipio';
+  let   APAC_MUNICIPIO   = localStorage.getItem('apac_muni') || 'NAZARÉ DA MATA';
   const UPDATE_MIN       = 5;
   const RAIN_FIELDS      = ['horas_24','mm_24h','acum_24h','acumulado_24h','prec24h','chuva_24h','valor'];
 
   // ========= Geolocalização =========
-  const GEO_AUTO = true; // pede ao abrir (HTTPS necessário)
   const muniNameEl = document.getElementById('muniName');
   const btnLocate  = document.getElementById('btnLocate');
+  const geoHint    = document.getElementById('geoHint');
+  const CAN_GEO    = (location.protocol === 'https:' || location.hostname === 'localhost');
 
   // ======= FUNDO =======
   const bg = document.getElementById('bg');
@@ -248,53 +253,66 @@
   }
 
   async function geolocateAndSetMunicipio(manual=false){
-    if(!('geolocation' in navigator)) { btnLocate.style.display='none'; return; }
+    if(!CAN_GEO){
+      geoHint.style.display='block';
+      geoHint.textContent = 'Ative HTTPS para usar a localização';
+      return;
+    }
+    if(!('geolocation' in navigator)) {
+      geoHint.style.display='block';
+      geoHint.textContent = 'Seu navegador não suporta geolocalização';
+      return;
+    }
+    btnLocate.disabled = true;
+    btnLocate.textContent = 'Localizando…';
+    geoHint.style.display = 'none';
+
     try{
       const pos = await new Promise((resolve, reject)=>{
-        navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy:false, maximumAge:600000, timeout:10000 });
+        navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy:false, maximumAge:600000, timeout:12000 });
       });
       const { latitude, longitude } = pos.coords;
       const muni = await getMunicipioByPoint(latitude, longitude);
       if(muni){
         setMunicipio(muni);
         await atualizarChuva();
-        btnLocate.style.display='none';
-        btnLocate.textContent = 'Usar minha localização';
+        btnLocate.style.display='none'; // esconde quando deu certo
+      } else {
+        btnLocate.textContent = 'Tentar novamente';
+        geoHint.style.display='block';
+        geoHint.textContent = 'Não consegui identificar o município.';
       }
     }catch(e){
       console.warn('Geo falhou/negada:', e);
-      // se foi acionado manualmente e deu PERMISSION_DENIED, avisa no botão
-      if (manual && e && e.code === 1) {
-        btnLocate.textContent = 'Permitir localização nas configurações';
-      } else if (manual) {
-        btnLocate.textContent = 'Tentar novamente';
-      }
-      btnLocate.style.display = 'inline-block';
+      btnLocate.textContent = (e && e.code === 1)
+        ? 'Permitir localização nas configurações'
+        : 'Tentar novamente';
+      btnLocate.disabled = false;
+      geoHint.style.display='block';
+      geoHint.textContent = (e && e.code === 1)
+        ? 'Permissão negada. Libere a localização nas configurações do navegador.'
+        : 'Não foi possível obter a localização agora.';
       // mantém município atual
       muniNameEl.textContent = APAC_MUNICIPIO;
     }
   }
 
-  async function initGeoUI(){
-    // mostra botão quando não está garantido
-    if ('permissions' in navigator && navigator.permissions.query) {
-      try{
-        const p = await navigator.permissions.query({ name:'geolocation' });
-        const show = p.state !== 'granted';
-        btnLocate.style.display = show ? 'inline-block' : 'none';
-        p.onchange = () => { btnLocate.style.display = (p.state !== 'granted') ? 'inline-block' : 'none'; };
-      }catch{ btnLocate.style.display = 'inline-block'; }
-    } else {
-      btnLocate.style.display = 'inline-block';
+  function initGeoUI(){
+    // botão visível por padrão; some sozinho se a permissão já for concedida
+    btnLocate.style.display = 'inline-block';
+    if (!CAN_GEO) {
+      geoHint.style.display='block';
+      geoHint.textContent = 'Abra em HTTPS (ex.: Vercel) para usar a localização.';
     }
+    // se já tem município em cache, mostra
+    muniNameEl.textContent = APAC_MUNICIPIO;
   }
 
   // ======= Inicial =======
   setState(state);
-  muniNameEl.textContent = APAC_MUNICIPIO;
-  atualizarChuva();
-  if (GEO_AUTO) geolocateAndSetMunicipio(false);
   initGeoUI();
+  atualizarChuva();                     // usa município atual (cache / fallback)
+  if (CAN_GEO) geolocateAndSetMunicipio(false); // tentativa automática
 
   setInterval(atualizarChuva, UPDATE_MIN*60*1000);
   randomSim();
