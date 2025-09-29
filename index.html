@@ -308,4 +308,31 @@
 })();
 </script>
 </body>
+<!-- Em qualquer lugar do body -->
+<div id="ultra-box" style="margin:8px 0; font-weight:600;">
+  Distância da água: <span id="ultra-val">—</span>
+</div>
+
+<script>
+async function loadUltrassom() {
+  try {
+    const r = await fetch('/api/telemetria', { cache: 'no-store' });
+    const data = await r.json();
+    // pega 'heltec-01' ou o primeiro disponível
+    const dev = data?.['heltec-01'] || (Object.values(data || {})[0] || null);
+    if (dev?.data?.distance_cm != null) {
+      document.getElementById('ultra-val').textContent =
+        dev.data.distance_cm.toFixed(1) + ' cm';
+    } else {
+      document.getElementById('ultra-val').textContent = '—';
+    }
+  } catch (e) {
+    document.getElementById('ultra-val').textContent = 'Erro';
+  }
+}
+loadUltrassom();
+setInterval(loadUltrassom, 3000); // atualiza a cada 3s
+</script>
+  
 </html>
+
