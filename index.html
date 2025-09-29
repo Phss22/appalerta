@@ -93,6 +93,45 @@
     .btn:active{ transform:translateY(1px); }
     .ts{ font-size:11px; color:#e7eef6; text-shadow:0 1px 2px rgba(0,0,0,.55); }
   </style>
+
+<!-- === UI Overrides: blocos maiores, mais opacos e sem vazamento de texto === -->
+<style>
+:root{
+  /* mais opaco para melhorar leitura */
+  --glass-bg1: rgba(255,255,255,.55);
+  --glass-bg2: rgba(255,255,255,.35);
+  --glass-brd: rgba(255,255,255,.55);
+}
+
+/* grid de widgets um pouco maior */
+.widgets{
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+/* cartões/blocos mais altos e legíveis */
+.mini{
+  padding: 14px 16px;
+  min-height: 88px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, var(--glass-bg1), var(--glass-bg2));
+  border: 1px solid var(--glass-brd);
+  backdrop-filter: blur(10px) saturate(140%);
+}
+
+/* impedir vazamento e permitir 2 linhas com reticências */
+.mini .t, .mini .s{
+  white-space: normal;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;         /* até 2 linhas */
+  -webkit-box-orient: vertical;
+}
+
+.mini .t{ font-size: 13px; margin-bottom: 4px; }
+.mini .s{ line-height: 1.25; }
+</style>
 </head>
 <body>
   <div class="stage">
@@ -301,6 +340,33 @@
   setState(state);
   atualizarChuva();
   if (CAN_GEO) btnLocate.addEventListener('click', geolocateAndSetMunicipio);
+  // === Geo: melhorar UX no Vercel ===
+  // 1) Sempre tente associar o clique (mesmo sem HTTPS) para o caso de embed/iframe corrigido
+  btnLocate.addEventListener('click', geolocateAndSetMunicipio);
+
+  // 2) Em contexto seguro, tentamos acionar automaticamente uma vez para disparar o prompt
+  if (CAN_GEO && window.top === window.self) {
+    if ('permissions' in navigator && navigator.permissions.query) {
+      navigator.permissions.query({ name: 'geolocation' }).then(perm => {
+        if (perm.state === 'granted') {
+          geolocateAndSetMunicipio();
+        } else if (perm.state === 'prompt') {
+          setTimeout(() => geolocateAndSetMunicipio(), 400);
+        } else if (perm.state === 'denied') {
+          btnLocate.textContent = 'Permitir localização nas configurações';
+        }
+        perm.onchange = () => { if (perm.state === 'granted') geolocateAndSetMunicipio(); };
+      }).catch(() => {
+        setTimeout(() => geolocateAndSetMunicipio(), 400);
+      });
+    } else {
+      setTimeout(() => geolocateAndSetMunicipio(), 400);
+    }
+  } else if (window.top !== window.self) {
+    // Se estiver embutido em iframe, precisa de allow="geolocation" no iframe
+    btnLocate.title = 'Se estiver em outro site, o iframe precisa de allow="geolocation"';
+  }
+
 
   setInterval(atualizarChuva, UPDATE_MIN*60*1000);   // refresh periódico
   randomSim(); setInterval(randomSim, TICK_SECONDS*1000);
