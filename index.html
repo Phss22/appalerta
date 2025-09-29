@@ -8,9 +8,10 @@
     :root{
       --ok:#2e7d32; --yellow:#f9a825; --orange:#ef6c00; --text:#fff;
       --center-top:30%;
-      --glass-bg1:rgba(255,255,255,.35);
-      --glass-bg2:rgba(255,255,255,.22);
-      --glass-brd:rgba(255,255,255,.38);
+      /* vidro mais opaco p/ leitura */
+      --glass-bg1:rgba(255,255,255,.55);
+      --glass-bg2:rgba(255,255,255,.35);
+      --glass-brd:rgba(255,255,255,.55);
       --bg-bright:1.12;
     }
     body{ margin:0; background:#0b0f14; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial; color:#fff; }
@@ -29,24 +30,32 @@
     .hud{ position:absolute; left:12px; right:12px; top:12px; }
     .widgets{
       display:grid;
-      /* ↑ chips um pouco mais largos */
-      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-      gap:10px;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); /* chips mais largos */
+      gap: 12px;
       width:100%;
     }
     .mini{
-      /* ↑ mais espaço e altura */
-      padding:12px 14px; border-radius:12px;
-      min-height:60px;
-      backdrop-filter:blur(8px);
+      padding:14px 16px; border-radius:16px;
+      min-height:88px;
+      backdrop-filter:blur(10px) saturate(140%);
       background:linear-gradient(135deg,var(--glass-bg1),var(--glass-bg2));
       border:1px solid var(--glass-brd);
       box-shadow:0 8px 22px rgba(0,0,0,.16);
       color:#0f1720;
       transition:all .18s ease;
     }
-    .mini .t{ font-size:12px; font-weight:700; margin:0 0 2px; opacity:.95; }
-    .mini .s{ font-size:12px; white-space:pre-line; color:#2d3a45; line-height:1.2; }
+    .mini .t{
+      font-size:13px; font-weight:700; margin:0 0 4px; opacity:.95;
+      white-space:normal; overflow:hidden; text-overflow:ellipsis;
+      display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
+      overflow-wrap:anywhere;
+    }
+    .mini .s{
+      line-height:1.25; color:#2d3a45;
+      white-space:normal; overflow:hidden; text-overflow:ellipsis;
+      display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
+      overflow-wrap:anywhere;
+    }
 
     /* Botão pequeno dentro do card */
     .mini .mini-btn{
@@ -56,25 +65,25 @@
     }
     .mini .mini-btn:active{ transform:translateY(1px); }
 
-    /* --- MODO COMPACTO (chip maiorzinho) --- */
+    /* MODO COMPACTO (chip enxuto) */
     .mini.compact{
-      padding:10px 14px;          /* ↑ antes 6px 10px */
+      padding:10px 14px;
       min-height:auto;
-      display:flex; align-items:center; gap:10px; /* ↑ gap maior */
-      border-radius:14px;         /* um pouco mais quadrado que a pílula */
+      display:flex; align-items:center; gap:10px;
+      border-radius:14px;
       box-shadow:0 6px 18px rgba(0,0,0,.12);
     }
     .mini.compact .t{ display:none; }
     .mini.compact .s{
       display:flex; align-items:center; gap:8px;
       white-space:nowrap;
-      font-size:13.5px;           /* ↑ fonte maior */
+      font-size:13.5px;
       line-height:1.25;
     }
-    .mini.compact .s br{ display:none; }  /* esconde “em\nCarpina” no chip */
+    .mini.compact .s br{ display:none; }
     .mini.compact .mini-btn{ display:none; }
 
-    .pill-ico{ font-size:16px; } /* ↑ ícone maior */
+    .pill-ico{ font-size:16px; }
 
     /* Texto central */
     .center{
@@ -93,45 +102,6 @@
     .btn:active{ transform:translateY(1px); }
     .ts{ font-size:11px; color:#e7eef6; text-shadow:0 1px 2px rgba(0,0,0,.55); }
   </style>
-
-<!-- === UI Overrides: blocos maiores, mais opacos e sem vazamento de texto === -->
-<style>
-:root{
-  /* mais opaco para melhorar leitura */
-  --glass-bg1: rgba(255,255,255,.55);
-  --glass-bg2: rgba(255,255,255,.35);
-  --glass-brd: rgba(255,255,255,.55);
-}
-
-/* grid de widgets um pouco maior */
-.widgets{
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 12px;
-}
-
-/* cartões/blocos mais altos e legíveis */
-.mini{
-  padding: 14px 16px;
-  min-height: 88px;
-  border-radius: 16px;
-  background: linear-gradient(135deg, var(--glass-bg1), var(--glass-bg2));
-  border: 1px solid var(--glass-brd);
-  backdrop-filter: blur(10px) saturate(140%);
-}
-
-/* impedir vazamento e permitir 2 linhas com reticências */
-.mini .t, .mini .s{
-  white-space: normal;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;         /* até 2 linhas */
-  -webkit-box-orient: vertical;
-}
-
-.mini .t{ font-size: 13px; margin-bottom: 4px; }
-.mini .s{ line-height: 1.25; }
-</style>
 </head>
 <body>
   <div class="stage">
@@ -174,9 +144,10 @@
     </div>
   </div>
 
+<!-- ====== SCRIPT PRINCIPAL (APAC + GEO ROBUSTA) ====== -->
 <script defer>
 (function(){
-  console.log('UI chips maiores');
+  console.log('UI chips maiores + geo robusta');
   const TICK_SECONDS = 30;
 
   /* ======= APAC (camada de municípios) ======= */
@@ -184,9 +155,13 @@
   const LAYER_MUNICIPIOS  = 1;               // polígono com nm_mun + horas_24
   const FIELD_NAME        = 'nm_mun';
   const FIELD_MM24        = 'horas_24';
-  const USE_PROXY         = true;            // se usa /api/apac-rain.js na Vercel
+  const USE_PROXY         = true;            // usa /api/apac-rain.js na Vercel
   const UPDATE_MIN        = 5;
   let   MUNICIPIO         = localStorage.getItem('apac_muni') || 'NAZARÉ DA MATA';
+
+  /* ======= Helpers ======= */
+  const norm = (s)=> (s||'').toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim();
+  const escQ = (s)=> (s||'').replace(/'/g,"''"); // escapa aspas em SQL
 
   /* ======= Fundo ======= */
   const bg = document.getElementById('bg');
@@ -240,7 +215,6 @@
       orange:'⛔ LARANJA — evite áreas de risco.'
     }[state.landslide_risk] || '⛰️ Nenhum';
 
-    // Compacta automaticamente (agora com chip maior):
     cardRain.classList.toggle('compact', Number(state.rain_mm_24h) < 1);
     cardLand.classList.toggle('compact', state.landslide_risk === 'none');
 
@@ -254,7 +228,7 @@
     setState({ river_level:next, rain_mm_24h:state.rain_mm_24h, landslide_risk:state.landslide_risk, ts:new Date() });
   }
 
-  /* ======= ArcGIS ======= */
+  /* ======= APAC proxy ======= */
   async function fetchArcGIS(layer, params){
     const base = USE_PROXY
       ? `/api/apac-rain?service=${encodeURIComponent(`${MAP_BASE}/${layer}`)}&`
@@ -265,36 +239,75 @@
     return r.json();
   }
 
+  /* ======= Ponto -> Município pelo layer da APAC ======= */
   async function getMunicipioByPoint(lat, lon){
     const geometry = JSON.stringify({ x: lon, y: lat, spatialReference:{ wkid:4326 } });
     const params = new URLSearchParams({
-      geometry, geometryType:'esriGeometryPoint', inSR:'4326',
-      spatialRel:'esriSpatialRelIntersects', distance:'3', units:'Kilometers',
-      outFields: `${FIELD_NAME}`, returnGeometry:'false',
-      f:'json', resultRecordCount:'1'
+      geometry,
+      geometryType: 'esriGeometryPoint',
+      inSR: '4326',
+      spatialRel: 'esriSpatialRelWithin',
+      outFields: `${FIELD_NAME}`,
+      returnGeometry: 'false',
+      f: 'json',
+      resultRecordCount: '1'
     });
     const data = await fetchArcGIS(LAYER_MUNICIPIOS, params);
-    if(data.features && data.features.length){
+    if (data.features && data.features.length) {
       const a = data.features[0].attributes || {};
-      return (a[FIELD_NAME] || '').toString().trim();
+      const muni = (a[FIELD_NAME] || '').toString().trim();
+      if (muni) return muni;
     }
     throw new Error('Ponto fora do limite municipal');
   }
 
-  async function getRainForMunicipio(muni){
-    const where = `UPPER(${FIELD_NAME})='${muni.toUpperCase()}'`;
-    const params = new URLSearchParams({
-      where, outFields:`${FIELD_MM24},${FIELD_NAME},ultima_leitura_data_hora`,
-      returnGeometry:'false', resultRecordCount:'1', f:'json'
-    });
-    const data = await fetchArcGIS(LAYER_MUNICIPIOS, params);
-    if(data.features && data.features.length){
-      const a = data.features[0].attributes || {};
-      return { muni: a[FIELD_NAME] || muni, mm24: Number(a[FIELD_MM24] ?? 0), ts: a.ultima_leitura_data_hora || new Date() };
-    }
-    throw new Error('Município não encontrado no layer 1');
+  /* ======= Reverse geocode como fallback (Esri) ======= */
+  async function reverseGeocodeEsri(lat, lon){
+    const url = `https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/reverseGeocode?location=${lon},${lat}&f=json`;
+    const r = await fetch(url);
+    if (!r.ok) throw new Error('Reverse geocode HTTP '+r.status);
+    const j = await r.json();
+    return j?.address?.City || j?.address?.Subregion || j?.address?.Region || '';
   }
 
+  /* ======= Chuva para município (exato e fallback LIKE) ======= */
+  async function getRainForMunicipio(muniRaw){
+    const muni = norm(muniRaw);
+    // 1) tentativa exata
+    let where = `UPPER(${FIELD_NAME})='${escQ(muni)}'`;
+    let params = new URLSearchParams({
+      where,
+      outFields: `${FIELD_MM24},${FIELD_NAME},ultima_leitura_data_hora`,
+      returnGeometry: 'false',
+      f: 'json',
+      resultRecordCount: '1'
+    });
+    let data = await fetchArcGIS(LAYER_MUNICIPIOS, params);
+    if (data.features && data.features.length){
+      const a = data.features[0].attributes || {};
+      return { muni: a[FIELD_NAME] || muniRaw, mm24: Number(a[FIELD_MM24] ?? 0), ts: a.ultima_leitura_data_hora || new Date() };
+    }
+
+    // 2) fallback aproximado (LIKE pela primeira palavra)
+    const first = escQ(muni.split(/\s+/)[0]);
+    where = `UPPER(${FIELD_NAME}) LIKE '${first}%'`;
+    params = new URLSearchParams({
+      where,
+      outFields: `${FIELD_MM24},${FIELD_NAME},ultima_leitura_data_hora`,
+      returnGeometry: 'false',
+      f: 'json',
+      resultRecordCount: '1'
+    });
+    data = await fetchArcGIS(LAYER_MUNICIPIOS, params);
+    if (data.features && data.features.length){
+      const a = data.features[0].attributes || {};
+      return { muni: a[FIELD_NAME] || muniRaw, mm24: Number(a[FIELD_MM24] ?? 0), ts: a.ultima_leitura_data_hora || new Date() };
+    }
+
+    throw new Error('Município não encontrado por nome');
+  }
+
+  /* ======= Atualizar UI com chuva ======= */
   async function atualizarChuva(){
     try{
       const { muni, mm24, ts:tsRow } = await getRainForMunicipio(MUNICIPIO);
@@ -310,24 +323,35 @@
     }catch(e){ console.warn('[APAC]', e); }
   }
 
+  /* ======= Geo flow (robusto) ======= */
   const CAN_GEO = (location.protocol === 'https:' || location.hostname === 'localhost');
   async function geolocateAndSetMunicipio(){
     if(!CAN_GEO || !('geolocation' in navigator)) return;
     try{
       btnLocate.textContent = 'Localizando…'; btnLocate.disabled = true;
       const pos = await new Promise((res,rej)=>{
-        navigator.geolocation.getCurrentPosition(res, rej, { enableHighAccuracy:false, maximumAge:600000, timeout:12000 });
+        navigator.geolocation.getCurrentPosition(res, rej, {
+          enableHighAccuracy: true, maximumAge: 300000, timeout: 15000
+        });
       });
       const { latitude, longitude } = pos.coords;
-      const muni = await getMunicipioByPoint(latitude, longitude);
-      if (muni){
-        MUNICIPIO = muni; muniNameEl.textContent = muni;
-        localStorage.setItem('apac_muni', muni);
-        await atualizarChuva();
-        btnLocate.style.display='none';
-      } else {
-        btnLocate.textContent = 'Tentar novamente'; btnLocate.disabled=false;
+
+      // 1) Tenta APAC direto (ponto dentro do polígono)
+      let muni = '';
+      try {
+        muni = await getMunicipioByPoint(latitude, longitude);
+      } catch {
+        // 2) Fallback: reverse geocode -> consulta por nome
+        const city = await reverseGeocodeEsri(latitude, longitude);
+        if (!city) throw new Error('Reverse geocode vazio');
+        muni = city;
       }
+
+      MUNICIPIO = muni;
+      muniNameEl.textContent = muni;
+      localStorage.setItem('apac_muni', muni);
+      await atualizarChuva();
+      btnLocate.style.display='none';
     }catch(e){
       console.warn('Geo falhou/negada:', e);
       btnLocate.textContent = (e && e.code === 1) ? 'Permitir localização nas configurações' : 'Tentar novamente';
@@ -339,43 +363,34 @@
   muniNameEl.textContent = MUNICIPIO;
   setState(state);
   atualizarChuva();
-  if (CAN_GEO) btnLocate.addEventListener('click', geolocateAndSetMunicipio);
-  // === Geo: melhorar UX no Vercel ===
-  // 1) Sempre tente associar o clique (mesmo sem HTTPS) para o caso de embed/iframe corrigido
-  btnLocate.addEventListener('click', geolocateAndSetMunicipio);
 
-  // 2) Em contexto seguro, tentamos acionar automaticamente uma vez para disparar o prompt
+  // Clique do botão
+  if (CAN_GEO) btnLocate.addEventListener('click', geolocateAndSetMunicipio);
+
+  // Auto-prompt se possível (HTTPS, top-level)
   if (CAN_GEO && window.top === window.self) {
     if ('permissions' in navigator && navigator.permissions.query) {
       navigator.permissions.query({ name: 'geolocation' }).then(perm => {
-        if (perm.state === 'granted') {
-          geolocateAndSetMunicipio();
-        } else if (perm.state === 'prompt') {
-          setTimeout(() => geolocateAndSetMunicipio(), 400);
-        } else if (perm.state === 'denied') {
-          btnLocate.textContent = 'Permitir localização nas configurações';
-        }
+        if (perm.state === 'granted') geolocateAndSetMunicipio();
+        else if (perm.state === 'prompt') setTimeout(() => geolocateAndSetMunicipio(), 400);
+        else if (perm.state === 'denied') btnLocate.textContent = 'Permitir localização nas configurações';
         perm.onchange = () => { if (perm.state === 'granted') geolocateAndSetMunicipio(); };
-      }).catch(() => {
-        setTimeout(() => geolocateAndSetMunicipio(), 400);
-      });
+      }).catch(() => setTimeout(() => geolocateAndSetMunicipio(), 400));
     } else {
       setTimeout(() => geolocateAndSetMunicipio(), 400);
     }
   } else if (window.top !== window.self) {
-    // Se estiver embutido em iframe, precisa de allow="geolocation" no iframe
     btnLocate.title = 'Se estiver em outro site, o iframe precisa de allow="geolocation"';
   }
 
-
-  setInterval(atualizarChuva, UPDATE_MIN*60*1000);   // refresh periódico
+  setInterval(atualizarChuva, UPDATE_MIN*60*1000);
   randomSim(); setInterval(randomSim, TICK_SECONDS*1000);
   btnSwap.addEventListener('click', randomSim);
 })();
 </script>
 
-<!-- Bloco do ultrassônico (adicionei antes do </body>) -->
-<div id="ultra-box" style="margin:8px 0; font-weight:600;">
+<!-- ====== BLOCO DO ULTRASSÔMICO (telemetria) ====== -->
+<div id="ultra-box" style="margin:8px 16px; font-weight:600;">
   Distância da água: <span id="ultra-val">—</span>
 </div>
 
@@ -402,5 +417,3 @@
 </script>
 </body>
 </html>
-
-
