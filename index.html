@@ -22,8 +22,13 @@
     }
     @media (max-width:480px){ .app{ width:100vw; height:100vh; border-radius:0; box-shadow:none; } }
 
+    /* Fundo com crossfade (duas camadas) */
     .bg{ position:absolute; inset:0; background:#000 center/cover no-repeat;
-         filter: brightness(var(--bg-bright)) contrast(1.05) saturate(1.06); }
+         filter: brightness(var(--bg-bright)) contrast(1.05) saturate(1.06);
+         opacity:0; transform:scale(1.02);
+         transition: opacity .6s ease, transform 6s ease;
+    }
+    .bg.active{ opacity:1; transform:scale(1.0); }
     .scrim{ position:absolute; inset:0; background:linear-gradient(180deg,rgba(0,0,0,.10),rgba(0,0,0,.35)); }
 
     /* HUD topo */
@@ -42,7 +47,7 @@
       border:1px solid var(--glass-brd);
       box-shadow:0 8px 22px rgba(0,0,0,.16);
       color:#0f1720;
-      transition:all .18s ease;
+      transition:box-shadow .25s ease, background .25s ease, border-color .25s ease, transform .25s ease;
     }
     .mini .t{
       font-size:13px; font-weight:700; margin:0 0 4px; opacity:.95;
@@ -56,14 +61,19 @@
       display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
       overflow-wrap:anywhere;
     }
+    .mini.alert{ border-color: rgba(239,108,0,.55); box-shadow:0 10px 24px rgba(239,108,0,.18); }
+    .mini.warn { border-color: rgba(249,168,37,.55); box-shadow:0 10px 24px rgba(249,168,37,.18); }
+    .mini.ok   { border-color: rgba(46,125,50,.35);  box-shadow:0 10px 24px rgba(46,125,50,.14); }
+    .mini:hover{ transform:translateY(-1px); }
 
-    /* Botão pequeno dentro do card */
+    /* Botões dentro do card */
     .mini .mini-btn{
-      margin-top:6px; font-size:11px; padding:6px 10px; border-radius:999px;
-      border:1px solid rgba(0,0,0,.08); background:rgba(255,255,255,.78);
+      margin-top:6px; font-size:11px; padding:10px 12px; border-radius:12px;
+      border:1px solid rgba(0,0,0,.08); background:rgba(255,255,255,.85);
       color:#0f1720; cursor:pointer;
     }
     .mini .mini-btn:active{ transform:translateY(1px); }
+    .mini .mini-btn.alt{ background:rgba(255,255,255,.95); }
 
     /* MODO COMPACTO (chip enxuto) */
     .mini.compact{
@@ -85,51 +95,75 @@
 
     .pill-ico{ font-size:16px; }
 
-    /* Texto central */
+    /* Texto central + animações do status */
     .center{
       position:absolute; left:50%; top:var(--center-top); transform:translate(-50%,-50%);
       width:100%; display:flex; justify-content:center; padding:0 16px; pointer-events:none; z-index:3;
     }
     .river{ text-align:center; --shadow:0 2px 6px rgba(0,0,0,.65), 0 0 2px rgba(0,0,0,.6); }
-    .icon{ font-size:48px; filter:drop-shadow(0 2px 6px rgba(0,0,0,.5)); }
+    .icon{ font-size:48px; filter:drop-shadow(0 2px 6px rgba(0,0,0,.5)); transition:transform .45s ease; }
     .label{ margin-top:6px; font-size:14px; color:#e9f1fb; text-shadow:var(--shadow); letter-spacing:.2px; }
-    .status{ margin-top:2px; font-size:24px; font-weight:900; text-shadow:var(--shadow); }
+    .status{ margin-top:2px; font-size:24px; font-weight:900; text-shadow:var(--shadow);
+             transition: color .35s ease, transform .35s ease, opacity .35s ease; }
     .status.ok{ color:var(--ok); } .status.yellow{ color:var(--yellow); } .status.orange{ color:var(--orange); }
-    .msg{ margin-top:6px; font-size:14px; color:#f0f6ff; opacity:.95; text-shadow:var(--shadow); }
+    .status.pop{ animation:pop .45s ease; }
+    @keyframes pop{
+      0%{ transform:translateY(6px) scale(.98); opacity:.6 }
+      100%{ transform:none; opacity:1 }
+    }
+    .msg{ margin-top:6px; font-size:14px; color:#f0f6ff; opacity:.95; text-shadow:var(--shadow);
+          transition: opacity .35s ease, transform .35s ease; }
 
     .bottom{ position:absolute; inset:auto 16px 14px 16px; display:flex; justify-content:space-between; align-items:center; gap:10px; z-index:4; }
     .btn{ border:0; padding:10px 14px; border-radius:12px; background:#1565c0; color:#fff; font-weight:700; cursor:pointer; box-shadow:0 6px 18px rgba(0,0,0,.25);}
     .btn:active{ transform:translateY(1px); }
     .ts{ font-size:11px; color:#e7eef6; text-shadow:0 1px 2px rgba(0,0,0,.55); }
+
+    /* Modal simples para município manual */
+    .modal{ position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
+            background:rgba(0,0,0,.45); backdrop-filter: blur(4px); z-index:10; }
+    .modal.hidden{ display:none; }
+    .modal-card{ width:min(92vw, 420px); background:#0f1720; color:#eaf2fb; border-radius:16px;
+                 border:1px solid rgba(255,255,255,.15); padding:16px; box-shadow:0 20px 60px rgba(0,0,0,.45); }
+    .modal-card h3{ margin:0 0 10px; font-size:18px; }
+    .modal-row{ display:flex; gap:8px; }
+    .modal-row input{ flex:1; padding:10px 12px; border-radius:10px; border:1px solid rgba(255,255,255,.15);
+                      background:#0b141c; color:#eaf2fb; outline:none; }
+    .modal-actions{ margin-top:12px; display:flex; gap:8px; justify-content:flex-end; }
+    .btn-sec{ background:#263442; color:#eaf2fb; border:1px solid rgba(255,255,255,.15); border-radius:10px; padding:10px 12px; }
+    .btn-pri{ background:#1565c0; color:#fff; border:0; border-radius:10px; padding:10px 12px; }
   </style>
 </head>
 <body>
   <div class="stage">
     <div class="app">
-      <div class="bg" id="bg"></div>
+      <!-- duas camadas p/ crossfade -->
+      <div class="bg" id="bgA"></div>
+      <div class="bg" id="bgB"></div>
       <div class="scrim"></div>
 
       <div class="hud">
         <div class="widgets">
           <!-- Chuva -->
-          <div class="mini" id="cardRain">
+          <div class="mini ok" id="cardRain">
             <div class="t">☔ Chuva nas últimas 24h</div>
             <div class="s">
               <span class="pill-ico">☔</span>
               <span><span id="rainVal">—</span> mm <br>em <strong id="muniName">carregando…</strong></span>
             </div>
-            <button id="btnLocate" class="mini-btn">Usar minha localização</button>
+            <button id="btnLocate" class="mini-btn" aria-label="Usar minha localização">Usar minha localização</button>
+            <button id="btnManualMuni" class="mini-btn alt" aria-label="Definir município">Definir município</button>
           </div>
           <!-- Deslizamento -->
-          <div class="mini" id="cardLand">
+          <div class="mini ok" id="cardLand">
             <div class="t">⛰️ Risco de deslizamento</div>
-            <div class="s" id="landText">Carregando…</div>
+            <div class="s" id="landText" aria-live="polite">Carregando…</div>
           </div>
         </div>
       </div>
 
       <div class="center">
-        <div class="river" id="riverCard">
+        <div class="river" id="riverCard" aria-live="polite">
           <div class="icon" id="riverIcon">💧</div>
           <div class="label">Nível do rio</div>
           <div class="status ok" id="riverStatus">Normal</div>
@@ -144,10 +178,24 @@
     </div>
   </div>
 
-<!-- ====== SCRIPT PRINCIPAL (APAC + GEO ROBUSTA) ====== -->
+  <!-- Modal Município Manual -->
+  <div id="muniModal" class="modal hidden">
+    <div class="modal-card">
+      <h3>Definir município do sensor</h3>
+      <div class="modal-row">
+        <input id="muniInput" type="text" placeholder="Ex.: Carpina" />
+      </div>
+      <div class="modal-actions">
+        <button id="closeModal" class="btn-sec">Cancelar</button>
+        <button id="saveMuni" class="btn-pri">Salvar</button>
+      </div>
+    </div>
+  </div>
+
+<!-- ====== SCRIPT PRINCIPAL (APAC + GEO ROBUSTA + TRANSIÇÕES + SAFARI FIX + MUNICÍPIO MANUAL) ====== -->
 <script defer>
 (function(){
-  console.log('UI chips maiores + geo robusta');
+  console.log('geo robusta + crossfade + safari fix + manual muni');
   const TICK_SECONDS = 30;
 
   /* ======= APAC (camada de municípios) ======= */
@@ -157,14 +205,18 @@
   const FIELD_MM24        = 'horas_24';
   const USE_PROXY         = true;            // usa /api/apac-rain.js na Vercel
   const UPDATE_MIN        = 5;
-  let   MUNICIPIO         = localStorage.getItem('apac_muni') || 'NAZARÉ DA MATA';
+
+  const IS_SAFARI = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+  let   MUNICIPIO = localStorage.getItem('apac_muni') || 'NAZARÉ DA MATA';
 
   /* ======= Helpers ======= */
   const norm = (s)=> (s||'').toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim();
   const escQ = (s)=> (s||'').replace(/'/g,"''"); // escapa aspas em SQL
 
-  /* ======= Fundo ======= */
-  const bg = document.getElementById('bg');
+  /* ======= Fundo com crossfade ======= */
+  const bgA = document.getElementById('bgA');
+  const bgB = document.getElementById('bgB');
+  let activeBg = 'A';
   const BG_BASE = { none:'joana_normal', yellow:'joana_alerta_amarelo', orange:'joana_alerta_laranja' };
   const EXT = ['.jpg','.jpeg','.png',''];
   function resolveImage(base, cb){
@@ -173,7 +225,18 @@
       im.onload=()=>cb(src); im.onerror=tryNext; im.src=src; };
     tryNext();
   }
-  function setBackground(level){ resolveImage(BG_BASE[level]||BG_BASE.none, (src)=>{ if(src) bg.style.backgroundImage=`url("${src}")`; }); }
+  function setBackground(level){
+    const base = BG_BASE[level] || BG_BASE.none;
+    resolveImage(base, (src)=>{
+      if(!src) return;
+      const next = activeBg === 'A' ? bgB : bgA;
+      const prev = activeBg === 'A' ? bgA : bgB;
+      next.style.backgroundImage = `url("${src}")`;
+      next.classList.add('active');
+      prev.classList.remove('active');
+      activeBg = (activeBg === 'A') ? 'B' : 'A';
+    });
+  }
 
   /* ======= UI refs ======= */
   const riverIcon = document.getElementById('riverIcon');
@@ -185,14 +248,31 @@
   const ts = document.getElementById('ts');
   const btnSwap = document.getElementById('btnSwap');
   const btnLocate = document.getElementById('btnLocate');
+  const btnManualMuni = document.getElementById('btnManualMuni');
   const cardRain = document.getElementById('cardRain');
   const cardLand = document.getElementById('cardLand');
 
+  // Modal
+  const muniModal = document.getElementById('muniModal');
+  const muniInput = document.getElementById('muniInput');
+  const closeModal = document.getElementById('closeModal');
+  const saveMuni = document.getElementById('saveMuni');
+
   let state = { river_level:'none', rain_mm_24h:NaN, landslide_risk:'none', ts:new Date() };
 
+  function setCardEmphasis(){
+    cardRain.classList.remove('ok','warn','alert');
+    cardLand.classList.remove('ok','warn','alert');
+    if(state.landslide_risk==='orange'){ cardLand.classList.add('alert'); cardRain.classList.add('warn'); }
+    else if(state.landslide_risk==='yellow'){ cardLand.classList.add('warn'); cardRain.classList.add('ok'); }
+    else { cardLand.classList.add('ok'); cardRain.classList.add('ok'); }
+  }
+
   function setState(s){
+    const prevLevel = state.river_level;
     state = s;
     setBackground(state.river_level);
+    setCardEmphasis();
 
     const map = {
       none:{icon:'💧',label:'Normal',cls:'ok',msg:'Tudo tranquilo por enquanto.'},
@@ -201,8 +281,17 @@
     };
     const m = map[state.river_level]||map.none;
 
+    if (prevLevel !== state.river_level) {
+      riverIcon.style.transform = 'scale(1.08)';
+      setTimeout(()=>riverIcon.style.transform='', 350);
+    }
+
+    if (riverStatus.textContent !== m.label) {
+      riverStatus.classList.remove('pop'); void riverStatus.offsetWidth; riverStatus.classList.add('pop');
+    }
+
     riverIcon.textContent = m.icon;
-    riverStatus.className = 'status ' + m.cls;
+    riverStatus.className = 'status ' + m.cls + ' pop';
     riverStatus.textContent = m.label;
     riverMsg.textContent = m.msg;
 
@@ -234,37 +323,35 @@
       ? `/api/apac-rain?service=${encodeURIComponent(`${MAP_BASE}/${layer}`)}&`
       : `${MAP_BASE}/${layer}/query?`;
     const url = base + params.toString();
-    const r = await fetch(url);
+    const r = await fetch(url, { mode: 'cors', cache: 'no-store' });
     if(!r.ok) throw new Error('APAC HTTP '+r.status);
     return r.json();
   }
 
-  /* ======= Ponto -> Município pelo layer da APAC ======= */
-  async function getMunicipioByPoint(lat, lon){
+  /* ======= Ponto -> Município: 3 tentativas ======= */
+  async function getMunicipioByPointWithin(lat, lon){
     const geometry = JSON.stringify({ x: lon, y: lat, spatialReference:{ wkid:4326 } });
     const params = new URLSearchParams({
-      geometry,
-      geometryType: 'esriGeometryPoint',
-      inSR: '4326',
-      spatialRel: 'esriSpatialRelWithin',
-      outFields: `${FIELD_NAME}`,
-      returnGeometry: 'false',
-      f: 'json',
-      resultRecordCount: '1'
+      geometry, geometryType: 'esriGeometryPoint', inSR: '4326',
+      spatialRel: 'esriSpatialRelWithin', outFields: `${FIELD_NAME}`,
+      returnGeometry: 'false', f: 'json', resultRecordCount: '1'
     });
     const data = await fetchArcGIS(LAYER_MUNICIPIOS, params);
-    if (data.features && data.features.length) {
-      const a = data.features[0].attributes || {};
-      const muni = (a[FIELD_NAME] || '').toString().trim();
-      if (muni) return muni;
-    }
-    throw new Error('Ponto fora do limite municipal');
+    const a = data.features?.[0]?.attributes; return (a && a[FIELD_NAME]) ? String(a[FIELD_NAME]).trim() : '';
   }
-
-  /* ======= Reverse geocode como fallback (Esri) ======= */
+  async function getMunicipioByPointBuffer(lat, lon, km=5){
+    const geometry = JSON.stringify({ x: lon, y: lat, spatialReference:{ wkid:4326 } });
+    const params = new URLSearchParams({
+      geometry, geometryType: 'esriGeometryPoint', inSR: '4326',
+      spatialRel: 'esriSpatialRelIntersects', distance: String(km), units:'Kilometers',
+      outFields: `${FIELD_NAME}`, returnGeometry:'false', f:'json', resultRecordCount:'1'
+    });
+    const data = await fetchArcGIS(LAYER_MUNICIPIOS, params);
+    const a = data.features?.[0]?.attributes; return (a && a[FIELD_NAME]) ? String(a[FIELD_NAME]).trim() : '';
+  }
   async function reverseGeocodeEsri(lat, lon){
     const url = `https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/reverseGeocode?location=${lon},${lat}&f=json`;
-    const r = await fetch(url);
+    const r = await fetch(url, { mode:'cors', cache:'no-store' });
     if (!r.ok) throw new Error('Reverse geocode HTTP '+r.status);
     const j = await r.json();
     return j?.address?.City || j?.address?.Subregion || j?.address?.Region || '';
@@ -273,37 +360,29 @@
   /* ======= Chuva para município (exato e fallback LIKE) ======= */
   async function getRainForMunicipio(muniRaw){
     const muni = norm(muniRaw);
-    // 1) tentativa exata
+    // 1) exato
     let where = `UPPER(${FIELD_NAME})='${escQ(muni)}'`;
     let params = new URLSearchParams({
-      where,
-      outFields: `${FIELD_MM24},${FIELD_NAME},ultima_leitura_data_hora`,
-      returnGeometry: 'false',
-      f: 'json',
-      resultRecordCount: '1'
+      where, outFields: `${FIELD_MM24},${FIELD_NAME},ultima_leitura_data_hora`,
+      returnGeometry: 'false', f: 'json', resultRecordCount: '1'
     });
     let data = await fetchArcGIS(LAYER_MUNICIPIOS, params);
     if (data.features && data.features.length){
       const a = data.features[0].attributes || {};
       return { muni: a[FIELD_NAME] || muniRaw, mm24: Number(a[FIELD_MM24] ?? 0), ts: a.ultima_leitura_data_hora || new Date() };
     }
-
-    // 2) fallback aproximado (LIKE pela primeira palavra)
+    // 2) LIKE
     const first = escQ(muni.split(/\s+/)[0]);
     where = `UPPER(${FIELD_NAME}) LIKE '${first}%'`;
     params = new URLSearchParams({
-      where,
-      outFields: `${FIELD_MM24},${FIELD_NAME},ultima_leitura_data_hora`,
-      returnGeometry: 'false',
-      f: 'json',
-      resultRecordCount: '1'
+      where, outFields: `${FIELD_MM24},${FIELD_NAME},ultima_leitura_data_hora`,
+      returnGeometry: 'false', f: 'json', resultRecordCount: '1'
     });
     data = await fetchArcGIS(LAYER_MUNICIPIOS, params);
     if (data.features && data.features.length){
       const a = data.features[0].attributes || {};
       return { muni: a[FIELD_NAME] || muniRaw, mm24: Number(a[FIELD_MM24] ?? 0), ts: a.ultima_leitura_data_hora || new Date() };
     }
-
     throw new Error('Município não encontrado por nome');
   }
 
@@ -323,7 +402,7 @@
     }catch(e){ console.warn('[APAC]', e); }
   }
 
-  /* ======= Geo flow (robusto) ======= */
+  /* ======= Geo flow (robusto + Safari) ======= */
   const CAN_GEO = (location.protocol === 'https:' || location.hostname === 'localhost');
   async function geolocateAndSetMunicipio(){
     if(!CAN_GEO || !('geolocation' in navigator)) return;
@@ -331,21 +410,18 @@
       btnLocate.textContent = 'Localizando…'; btnLocate.disabled = true;
       const pos = await new Promise((res,rej)=>{
         navigator.geolocation.getCurrentPosition(res, rej, {
-          enableHighAccuracy: true, maximumAge: 300000, timeout: 15000
+          enableHighAccuracy: true, maximumAge: 0, timeout: 15000    // Safari: maximumAge 0
         });
       });
-      const { latitude, longitude } = pos.coords;
+      const { latitude, longitude, accuracy } = pos.coords;
 
-      // 1) Tenta APAC direto (ponto dentro do polígono)
-      let muni = '';
-      try {
-        muni = await getMunicipioByPoint(latitude, longitude);
-      } catch {
-        // 2) Fallback: reverse geocode -> consulta por nome
-        const city = await reverseGeocodeEsri(latitude, longitude);
-        if (!city) throw new Error('Reverse geocode vazio');
-        muni = city;
-      }
+      // 1) within
+      let muni = await getMunicipioByPointWithin(latitude, longitude);
+      // 2) buffer (Safari às vezes erra 1~3km)
+      if (!muni) muni = await getMunicipioByPointBuffer(latitude, longitude, Math.max(5, Math.ceil((accuracy||1000)/1000)));
+      // 3) reverse geocode
+      if (!muni) muni = await reverseGeocodeEsri(latitude, longitude);
+      if (!muni) throw new Error('Não foi possível identificar o município');
 
       MUNICIPIO = muni;
       muniNameEl.textContent = muni;
@@ -360,27 +436,40 @@
   }
 
   /* ======= Inicial ======= */
+  bgA.classList.add('active');
   muniNameEl.textContent = MUNICIPIO;
   setState(state);
   atualizarChuva();
 
-  // Clique do botão
+  // Botões
   if (CAN_GEO) btnLocate.addEventListener('click', geolocateAndSetMunicipio);
+  btnManualMuni.addEventListener('click', ()=>{
+    muniInput.value = MUNICIPIO;
+    muniModal.classList.remove('hidden');
+    setTimeout(()=>muniInput.focus(), 50);
+  });
+  closeModal.addEventListener('click', ()=> muniModal.classList.add('hidden'));
+  saveMuni.addEventListener('click', async ()=>{
+    const v = (muniInput.value||'').trim();
+    if(!v) return;
+    MUNICIPIO = v;
+    muniNameEl.textContent = v;
+    localStorage.setItem('apac_muni', v);
+    muniModal.classList.add('hidden');
+    await atualizarChuva();
+  });
 
-  // Auto-prompt se possível (HTTPS, top-level)
-  if (CAN_GEO && window.top === window.self) {
+  // Auto-prompt (apenas se não for Safari, que costuma exigir gesto)
+  if (!IS_SAFARI && CAN_GEO && window.top === window.self) {
     if ('permissions' in navigator && navigator.permissions.query) {
       navigator.permissions.query({ name: 'geolocation' }).then(perm => {
         if (perm.state === 'granted') geolocateAndSetMunicipio();
         else if (perm.state === 'prompt') setTimeout(() => geolocateAndSetMunicipio(), 400);
-        else if (perm.state === 'denied') btnLocate.textContent = 'Permitir localização nas configurações';
         perm.onchange = () => { if (perm.state === 'granted') geolocateAndSetMunicipio(); };
       }).catch(() => setTimeout(() => geolocateAndSetMunicipio(), 400));
     } else {
       setTimeout(() => geolocateAndSetMunicipio(), 400);
     }
-  } else if (window.top !== window.self) {
-    btnLocate.title = 'Se estiver em outro site, o iframe precisa de allow="geolocation"';
   }
 
   setInterval(atualizarChuva, UPDATE_MIN*60*1000);
