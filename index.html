@@ -7,8 +7,7 @@
   <style>
     :root{
       --ok:#2e7d32; --yellow:#f9a825; --orange:#ef6c00; --text:#fff;
-      --center-top:30%;
-      /* vidro mais opaco p/ leitura */
+      --center-top:34%; /* ↓ um pouquinho mais baixo */
       --glass-bg1:rgba(255,255,255,.55);
       --glass-bg2:rgba(255,255,255,.35);
       --glass-brd:rgba(255,255,255,.55);
@@ -35,7 +34,7 @@
     .hud{ position:absolute; left:12px; right:12px; top:12px; }
     .widgets{
       display:grid;
-      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); /* chips mais largos */
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
       gap: 12px;
       width:100%;
     }
@@ -92,6 +91,7 @@
     }
     .mini.compact .s br{ display:none; }
     .mini.compact .mini-btn{ display:none; }
+    .mini.compact .mini-btn.alt{ display:inline-block; } /* ← mantém o botão "Definir município" visível */
 
     .pill-ico{ font-size:16px; }
 
@@ -119,19 +119,21 @@
     .btn:active{ transform:translateY(1px); }
     .ts{ font-size:11px; color:#e7eef6; text-shadow:0 1px 2px rgba(0,0,0,.55); }
 
-    /* Modal simples para município manual */
+    /* Modal município manual */
     .modal{ position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
             background:rgba(0,0,0,.45); backdrop-filter: blur(4px); z-index:10; }
     .modal.hidden{ display:none; }
     .modal-card{ width:min(92vw, 420px); background:#0f1720; color:#eaf2fb; border-radius:16px;
                  border:1px solid rgba(255,255,255,.15); padding:16px; box-shadow:0 20px 60px rgba(0,0,0,.45); }
     .modal-card h3{ margin:0 0 10px; font-size:18px; }
-    .modal-row{ display:flex; gap:8px; }
+    .modal-row{ display:flex; gap:8px; flex-wrap:wrap; }
     .modal-row input{ flex:1; padding:10px 12px; border-radius:10px; border:1px solid rgba(255,255,255,.15);
                       background:#0b141c; color:#eaf2fb; outline:none; }
+    .modal-row .hint{ font-size:12px; opacity:.8; width:100%; margin-top:6px; }
     .modal-actions{ margin-top:12px; display:flex; gap:8px; justify-content:flex-end; }
     .btn-sec{ background:#263442; color:#eaf2fb; border:1px solid rgba(255,255,255,.15); border-radius:10px; padding:10px 12px; }
     .btn-pri{ background:#1565c0; color:#fff; border:0; border-radius:10px; padding:10px 12px; }
+    .error{ color:#ffb3b3; font-size:12px; margin-top:6px; }
   </style>
 </head>
 <body>
@@ -183,7 +185,31 @@
     <div class="modal-card">
       <h3>Definir município do sensor</h3>
       <div class="modal-row">
-        <input id="muniInput" type="text" placeholder="Ex.: Carpina" />
+        <input id="muniInput" type="text" list="muniList" placeholder="Ex.: Carpina" />
+        <datalist id="muniList">
+          <!-- Mata Norte de PE + Recife -->
+          <option value="Aliança"></option>
+          <option value="Buenos Aires"></option>
+          <option value="Camutanga"></option>
+          <option value="Carpina"></option>
+          <option value="Condado"></option>
+          <option value="Ferreiros"></option>
+          <option value="Goiana"></option>
+          <option value="Itaquitinga"></option>
+          <option value="Itambé"></option>
+          <option value="Lagoa do Carro"></option>
+          <option value="Lagoa de Itaenga"></option>
+          <option value="Macaparana"></option>
+          <option value="Nazaré da Mata"></option>
+          <option value="Paudalho"></option>
+          <option value="São Vicente Ferrer"></option>
+          <option value="Timbaúba"></option>
+          <option value="Tracunhaém"></option>
+          <option value="Vicência"></option>
+          <option value="Recife"></option>
+        </datalist>
+        <div class="hint">Escolha da lista para garantir correspondência com os dados da APAC.</div>
+        <div id="muniError" class="error" style="display:none;"></div>
       </div>
       <div class="modal-actions">
         <button id="closeModal" class="btn-sec">Cancelar</button>
@@ -192,10 +218,10 @@
     </div>
   </div>
 
-<!-- ====== SCRIPT PRINCIPAL (APAC + GEO ROBUSTA + TRANSIÇÕES + SAFARI FIX + MUNICÍPIO MANUAL) ====== -->
+<!-- ====== SCRIPT PRINCIPAL (APAC + GEO ROBUSTA + TRANSIÇÕES + SAFARI + MUNICÍPIO MANUAL VALIDADO) ====== -->
 <script defer>
 (function(){
-  console.log('geo robusta + crossfade + safari fix + manual muni');
+  console.log('geo robusta + crossfade + safari + manual muni validado');
   const TICK_SECONDS = 30;
 
   /* ======= APAC (camada de municípios) ======= */
@@ -209,9 +235,16 @@
   const IS_SAFARI = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
   let   MUNICIPIO = localStorage.getItem('apac_muni') || 'NAZARÉ DA MATA';
 
-  /* ======= Helpers ======= */
+  /* ======= Lista canônica (Mata Norte + Recife) ======= */
+  const MUNI_LIST = [
+    'Aliança','Buenos Aires','Camutanga','Carpina','Condado','Ferreiros','Goiana',
+    'Itaquitinga','Itambé','Lagoa do Carro','Lagoa de Itaenga','Macaparana',
+    'Nazaré da Mata','Paudalho','São Vicente Ferrer','Timbaúba','Tracunhaém',
+    'Vicência','Recife'
+  ];
   const norm = (s)=> (s||'').toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim();
-  const escQ = (s)=> (s||'').replace(/'/g,"''"); // escapa aspas em SQL
+  const escQ = (s)=> (s||'').replace(/'/g,"''");
+  const MUNI_CANON = Object.fromEntries(MUNI_LIST.map(n => [norm(n), n]));
 
   /* ======= Fundo com crossfade ======= */
   const bgA = document.getElementById('bgA');
@@ -255,6 +288,7 @@
   // Modal
   const muniModal = document.getElementById('muniModal');
   const muniInput = document.getElementById('muniInput');
+  const muniError = document.getElementById('muniError');
   const closeModal = document.getElementById('closeModal');
   const saveMuni = document.getElementById('saveMuni');
 
@@ -410,16 +444,13 @@
       btnLocate.textContent = 'Localizando…'; btnLocate.disabled = true;
       const pos = await new Promise((res,rej)=>{
         navigator.geolocation.getCurrentPosition(res, rej, {
-          enableHighAccuracy: true, maximumAge: 0, timeout: 15000    // Safari: maximumAge 0
+          enableHighAccuracy: true, maximumAge: 0, timeout: 15000
         });
       });
       const { latitude, longitude, accuracy } = pos.coords;
 
-      // 1) within
       let muni = await getMunicipioByPointWithin(latitude, longitude);
-      // 2) buffer (Safari às vezes erra 1~3km)
       if (!muni) muni = await getMunicipioByPointBuffer(latitude, longitude, Math.max(5, Math.ceil((accuracy||1000)/1000)));
-      // 3) reverse geocode
       if (!muni) muni = await reverseGeocodeEsri(latitude, longitude);
       if (!muni) throw new Error('Não foi possível identificar o município');
 
@@ -427,6 +458,7 @@
       muniNameEl.textContent = muni;
       localStorage.setItem('apac_muni', muni);
       await atualizarChuva();
+      // Não escondemos o botão manual; apenas o de geo se quiser:
       btnLocate.style.display='none';
     }catch(e){
       console.warn('Geo falhou/negada:', e);
@@ -443,23 +475,39 @@
 
   // Botões
   if (CAN_GEO) btnLocate.addEventListener('click', geolocateAndSetMunicipio);
+
   btnManualMuni.addEventListener('click', ()=>{
-    muniInput.value = MUNICIPIO;
+    muniError.style.display='none';
+    muniError.textContent='';
+    muniInput.value = MUNI_CANON[norm(MUNICIPIO)] || MUNICIPIO;
     muniModal.classList.remove('hidden');
     setTimeout(()=>muniInput.focus(), 50);
   });
-  closeModal.addEventListener('click', ()=> muniModal.classList.add('hidden'));
+  function closeMuniModal(){ muniModal.classList.add('hidden'); }
+  closeModal.addEventListener('click', closeMuniModal);
   saveMuni.addEventListener('click', async ()=>{
-    const v = (muniInput.value||'').trim();
-    if(!v) return;
-    MUNICIPIO = v;
-    muniNameEl.textContent = v;
-    localStorage.setItem('apac_muni', v);
-    muniModal.classList.add('hidden');
-    await atualizarChuva();
+    const typed = (muniInput.value||'').trim();
+    const canon = MUNI_CANON[norm(typed)];
+    if (!canon) {
+      muniError.textContent = 'Município não encontrado na lista. Escolha um da lista.';
+      muniError.style.display='block';
+      return;
+    }
+    try{
+      // valida com a APAC; se não tiver dado retorna erro
+      await getRainForMunicipio(canon);
+      MUNICIPIO = canon;
+      localStorage.setItem('apac_muni', canon);
+      muniNameEl.textContent = canon;
+      await atualizarChuva();
+      closeMuniModal();
+    }catch(e){
+      muniError.textContent = 'Sem dados disponíveis para "'+canon+'". Tente outro município.';
+      muniError.style.display='block';
+    }
   });
 
-  // Auto-prompt (apenas se não for Safari, que costuma exigir gesto)
+  // Auto-prompt (evita no Safari)
   if (!IS_SAFARI && CAN_GEO && window.top === window.self) {
     if ('permissions' in navigator && navigator.permissions.query) {
       navigator.permissions.query({ name: 'geolocation' }).then(perm => {
