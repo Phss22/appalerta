@@ -7,18 +7,21 @@
   <style>
     :root{
       --ok:#2e7d32; --yellow:#f9a825; --orange:#ef6c00; --text:#fff;
-      --center-top:34%; /* baixo o suficiente p/ não cobrir os cards */
+      --center-top:34%; /* posição padrão do card central */
       --glass-bg1:rgba(255,255,255,.55);
       --glass-bg2:rgba(255,255,255,.35);
       --glass-brd:rgba(255,255,255,.55);
       --bg-bright:1.12;
       --muted:#b7c3cf;
+      --ink:#0a0f14;
     }
     body{ margin:0; background:#0b0f14; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial; color:#fff; }
     .stage{ min-height:100vh; display:grid; place-items:center; padding:16px; }
     .app{ width:390px; height:780px; position:relative; overflow:hidden; border-radius:28px;
       box-shadow:0 20px 60px rgba(0,0,0,.35), 0 2px 10px rgba(0,0,0,.25); background:#000; }
-    .app.push-center{ --center-top:40%; } /* ↓ quando abre o sparkline */
+    /* quando abre o spark, empurra mais o card central */
+    .app.push-center      { --center-top:42%; }
+    .app.push-center-hard { --center-top:50%; }
 
     @media (max-width:480px){ .app{ width:100vw; height:100vh; border-radius:0; box-shadow:none; } }
 
@@ -96,43 +99,25 @@
     .bottom .left{ flex:0 0 auto; }
     .bottom .mid{ flex:1 1 auto; min-width:160px; }
     .bottom .right{ flex:0 0 auto; }
-
     .btn{ border:0; padding:10px 14px; border-radius:12px; background:#1565c0; color:#fff; font-weight:700; cursor:pointer; box-shadow:0 6px 18px rgba(0,0,0,.25);}
     .btn:active{ transform:translateY(1px); }
     .btn-share-bottom{ background:#25D366; }
     .ts{ font-size:11px; color:#e7eef6; text-shadow:0 1px 2px rgba(0,0,0,.55); white-space:nowrap; }
     #recencia{ font-size:11px; color:#e7eef6; opacity:.9; margin-left:6px; white-space:nowrap; }
 
-    /* Sparkline (mais opaco) */
+    /* Sparkline (compacto e opaco) */
     details.spark{ margin:8px 0 0; }
     details.spark > summary{
-      cursor:pointer; list-style:none; color:#0a0f14; font-size:12px;
-      background:rgba(255,255,255,.92); border:1px solid var(--glass-brd);
-      display:inline-block; padding:6px 8px; border-radius:10px;
+      cursor:pointer; list-style:none; color:var(--ink); font-size:12px;
+      background:rgba(255,255,255,.96); border:1px solid var(--glass-brd);
+      display:inline-block; padding:6px 8px; border-radius:10px; user-select:none;
     }
     details.spark > summary::-webkit-details-marker{ display:none; }
     .sparkwrap{
-      margin-top:8px; padding:8px; background:rgba(255,255,255,.85);
-      border:1px solid var(--glass-brd); border-radius:10px; color:#0a0f14;
+      margin-top:6px; padding:6px; background:rgba(255,255,255,.96);
+      border:1px solid var(--glass-brd); border-radius:10px; color:var(--ink);
     }
-
-    /* Modais */
-    .modal{ position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
-            background:rgba(0,0,0,.45); backdrop-filter: blur(4px); z-index:10; }
-    .modal.hidden{ display:none; }
-    .modal-card{ width:min(92vw, 420px); background:#0f1720; color:#eaf2fb; border-radius:16px;
-                 border:1px solid rgba(255,255,255,.15); padding:16px; box-shadow:0 20px 60px rgba(0,0,0,.45); }
-    .modal-card h3{ margin:0 0 10px; font-size:18px; }
-    .modal-row{ display:flex; gap:8px; flex-wrap:wrap; }
-    .modal-row input, .modal-row textarea{
-      flex:1; padding:10px 12px; border-radius:10px; border:1px solid rgba(255,255,255,.15);
-      background:#0b141c; color:#eaf2fb; outline:none; width:100%;
-    }
-    .modal-row .hint{ font-size:12px; opacity:.8; width:100%; margin-top:6px; }
-    .modal-actions{ margin-top:12px; display:flex; gap:8px; justify-content:flex-end; }
-    .btn-sec{ background:#263442; color:#eaf2fb; border:1px solid rgba(255,255,255,.15); border-radius:10px; padding:10px 12px; }
-    .btn-pri{ background:#1565c0; color:#fff; border:0; border-radius:10px; padding:10px 12px; }
-    .error{ color:#ffb3b3; font-size:12px; margin-top:6px; }
+    #sparkLabel{ font-size:11px; color:var(--ink); margin-top:4px; }
   </style>
 </head>
 <body>
@@ -153,18 +138,17 @@
               <span><span id="rainVal">—</span> mm <br>em <strong id="muniName">carregando…</strong></span>
             </div>
 
-            <!-- Ações essenciais no card -->
             <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:6px;">
               <button id="btnLocate" class="mini-btn" aria-label="Usar minha localização">Usar minha localização</button>
               <button id="btnManualMuni" class="mini-btn alt" aria-label="Definir município">Definir município</button>
             </div>
 
-            <!-- Tendência (só aparece com 2+ pontos) -->
+            <!-- Tendência (só com 2+ pontos) -->
             <details class="spark" id="sparkDetails" style="display:none;">
               <summary>📈 Ver tendência (leituras recentes)</summary>
-              <div class="sparkwrap">
-                <svg id="spark" width="100%" height="40" viewBox="0 0 180 40" preserveAspectRatio="none"></svg>
-                <div class="muted" id="sparkLabel">—</div>
+              <div class="sparkwrap" id="sparkWrap">
+                <svg id="spark" width="100%" height="28" viewBox="0 0 180 28" preserveAspectRatio="none"></svg>
+                <div id="sparkLabel">—</div>
               </div>
             </details>
           </div>
@@ -304,6 +288,7 @@
   const spark = document.getElementById('spark');
   const sparkLabel = document.getElementById('sparkLabel');
   const sparkDetails = document.getElementById('sparkDetails');
+  const sparkWrap = document.getElementById('sparkWrap');
 
   // Modais
   const muniModal = document.getElementById('muniModal');
@@ -344,30 +329,38 @@
   }
   function drawSpark(muni){
     let arr = getHistory(muni);
-    if (arr.length < 2){ // esconde se só tem 0/1 ponto
+    if (arr.length < 2){
       sparkDetails.open = false;
       sparkDetails.style.display = 'none';
-      appRoot.classList.remove('push-center');
+      appRoot.classList.remove('push-center','push-center-hard');
       return;
     }
     sparkDetails.style.display = '';
     const N = Math.min(arr.length, 32);
     arr = arr.slice(arr.length-N);
+    const H = 28, PAD = 2;
     const max = Math.max(...arr.map(p=>p.v), 1);
     const pts = arr.map((p,i)=>{
       const x = i * (180/(N-1));
-      const y = 40 - (p.v/max)*36 - 2;
+      const y = H - (p.v/max)*(H - 2*PAD) - PAD;
       return `${x},${y}`;
     }).join(' ');
-    spark.setAttribute('viewBox','0 0 180 40');
+    spark.setAttribute('viewBox','0 0 180 28');
     spark.innerHTML = `<polyline points="${pts}" fill="none" stroke="currentColor" stroke-width="2"></polyline>`;
     const last = arr[arr.length-1];
     sparkLabel.textContent = `Últimas ${N} leituras • pico ${max.toFixed(1)} mm • atual ${last.v.toFixed(1)} mm`;
   }
-  sparkDetails.addEventListener('toggle', ()=>{
-    if (sparkDetails.open){ appRoot.classList.add('push-center'); drawSpark(MUNICIPIO); }
-    else { appRoot.classList.remove('push-center'); }
-  });
+  function ensureNoOverlap(){
+    if (!sparkDetails.open){ appRoot.classList.remove('push-center','push-center-hard'); return; }
+    appRoot.classList.add('push-center'); // empurra um pouco
+    // checa se ainda sobrepõe
+    const center = document.querySelector('.center').getBoundingClientRect();
+    const wrap = sparkWrap.getBoundingClientRect();
+    const overlaps = wrap.bottom + 8 > center.top; // 8px de margem
+    appRoot.classList.toggle('push-center-hard', overlaps);
+  }
+  sparkDetails.addEventListener('toggle', ()=>{ if (sparkDetails.open){ drawSpark(MUNICIPIO); ensureNoOverlap(); } else { ensureNoOverlap(); }});
+  window.addEventListener('resize', ensureNoOverlap);
 
   /* ======= APAC proxy ======= */
   async function fetchArcGIS(layer, params){
@@ -470,7 +463,8 @@
 
   function updateHistoryAndSpark(){
     addHistoryPoint(MUNICIPIO, state.rain_mm_24h);
-    drawSpark(MUNICIPIO); // isso já esconde se tiver <2 pontos
+    drawSpark(MUNICIPIO); // esconde se <2 pontos
+    ensureNoOverlap();
   }
 
   /* ======= Atualizar chuva ======= */
@@ -522,7 +516,7 @@
   setState(state);
   atualizarChuva();
   setInterval(atualizarChuva, UPDATE_MIN*60*1000);
-  setInterval(()=>setRecencia(state.ts), 30*1000); // “há X min”
+  setInterval(()=>setRecencia(state.ts), 30*1000);
 
   // Botões
   if (CAN_GEO) btnLocate.addEventListener('click', geolocateAndSetMunicipio);
@@ -554,16 +548,16 @@
     }
   });
 
-  // WhatsApp share (inclui tipo de aviso)
+  // WhatsApp share (inclui tipo de aviso, linguagem simples)
   function riskShareText(code){
     if (code==='orange') return 'ALARANJADO — evite áreas de risco';
     if (code==='yellow') return 'AMARELO — atenção';
     return 'Nenhum';
-    }
+  }
   btnShare.addEventListener('click', ()=>{
     const cidade = muniNameEl.textContent.trim();
     const chuva = rainVal.textContent.trim();
-    const nivel = riverStatus.textContent.trim(); // Normal / Alerta...
+    const nivel = riverStatus.textContent.trim();
     const risco = riskShareText(state.landslide_risk);
     const dist = document.getElementById('ultra-val')?.textContent?.trim();
     const loc = (SENSOR_LOC||'').trim();
@@ -575,11 +569,6 @@
     base += `\n${tsTxt}\nAcesse: aquasenseipa.vercel.app`;
     location.href = 'https://wa.me/?text=' + encodeURIComponent(base);
   });
-
-  // Sobre & fontes: abrir com F1 (ou cria um botão se quiser)
-  document.addEventListener('keydown', (e)=>{ if(e.key==='F1'){ e.preventDefault(); openAbout(); }});
-  function openAbout(){ aboutSensorLoc.textContent = 'Local do sensor: ' + (SENSOR_LOC || '—'); aboutModal.classList.remove('hidden'); }
-  closeAbout.addEventListener('click', ()=> aboutModal.classList.add('hidden'));
 
   // Simulação (dev)
   const levels=['none','yellow','orange']; const nextLevel = l => levels[(levels.indexOf(l)+1)%levels.length];
