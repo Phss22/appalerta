@@ -2,70 +2,64 @@
 <html lang="pt-br">
 <head>
   <meta charset="UTF-8" />
-  <title>Alerta do Rio</title>
+  <title>AquaSense — Alerta do Rio</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
     :root{
       --ok:#2e7d32; --yellow:#f9a825; --orange:#ef6c00; --text:#fff;
-      --center-top:34%; /* ↓ um pouquinho mais baixo */
+      --center-top:34%; /* ↓ levemente mais baixo pra não cobrir os cards */
       --glass-bg1:rgba(255,255,255,.55);
       --glass-bg2:rgba(255,255,255,.35);
       --glass-brd:rgba(255,255,255,.55);
       --bg-bright:1.12;
+      --muted:#b7c3cf;
     }
     body{ margin:0; background:#0b0f14; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial; color:#fff; }
     .stage{ min-height:100vh; display:grid; place-items:center; padding:16px; }
-    .app{
-      width:390px; height:780px; position:relative; overflow:hidden; border-radius:28px;
-      box-shadow:0 20px 60px rgba(0,0,0,.35), 0 2px 10px rgba(0,0,0,.25); background:#000;
-    }
+    .app{ width:390px; height:780px; position:relative; overflow:hidden; border-radius:28px;
+      box-shadow:0 20px 60px rgba(0,0,0,.35), 0 2px 10px rgba(0,0,0,.25); background:#000; }
     @media (max-width:480px){ .app{ width:100vw; height:100vh; border-radius:0; box-shadow:none; } }
 
     /* Fundo com crossfade (duas camadas) */
     .bg{ position:absolute; inset:0; background:#000 center/cover no-repeat;
          filter: brightness(var(--bg-bright)) contrast(1.05) saturate(1.06);
          opacity:0; transform:scale(1.02);
-         transition: opacity .6s ease, transform 6s ease;
-    }
+         transition: opacity .6s ease, transform 6s ease; }
     .bg.active{ opacity:1; transform:scale(1.0); }
     .scrim{ position:absolute; inset:0; background:linear-gradient(180deg,rgba(0,0,0,.10),rgba(0,0,0,.35)); }
 
     /* HUD topo */
     .hud{ position:absolute; left:12px; right:12px; top:12px; }
     .widgets{
-      display:grid;
-      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-      gap: 12px;
-      width:100%;
+      display:grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 12px; width:100%;
     }
     .mini{
-      padding:14px 16px; border-radius:16px;
-      min-height:88px;
+      padding:14px 16px; border-radius:16px; min-height:88px;
       backdrop-filter:blur(10px) saturate(140%);
       background:linear-gradient(135deg,var(--glass-bg1),var(--glass-bg2));
-      border:1px solid var(--glass-brd);
-      box-shadow:0 8px 22px rgba(0,0,0,.16);
-      color:#0f1720;
-      transition:box-shadow .25s ease, background .25s ease, border-color .25s ease, transform .25s ease;
+      border:1px solid var(--glass-brd); box-shadow:0 8px 22px rgba(0,0,0,.16);
+      color:#0f1720; transition:box-shadow .25s ease, background .25s ease, border-color .25s ease, transform .25s ease;
     }
     .mini .t{
       font-size:13px; font-weight:700; margin:0 0 4px; opacity:.95;
       white-space:normal; overflow:hidden; text-overflow:ellipsis;
-      display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
-      overflow-wrap:anywhere;
+      display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow-wrap:anywhere;
     }
     .mini .s{
       line-height:1.25; color:#2d3a45;
       white-space:normal; overflow:hidden; text-overflow:ellipsis;
-      display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
-      overflow-wrap:anywhere;
+      display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow-wrap:anywhere;
     }
     .mini.alert{ border-color: rgba(239,108,0,.55); box-shadow:0 10px 24px rgba(239,108,0,.18); }
     .mini.warn { border-color: rgba(249,168,37,.55); box-shadow:0 10px 24px rgba(249,168,37,.18); }
     .mini.ok   { border-color: rgba(46,125,50,.35);  box-shadow:0 10px 24px rgba(46,125,50,.14); }
     .mini:hover{ transform:translateY(-1px); }
 
-    /* Botões dentro do card */
+    .pill-ico{ font-size:16px; }
+    .muted{ color:var(--muted); font-size:12px; opacity:.95; }
+
+    /* Botões */
     .mini .mini-btn{
       margin-top:6px; font-size:11px; padding:10px 12px; border-radius:12px;
       border:1px solid rgba(0,0,0,.08); background:rgba(255,255,255,.85);
@@ -74,32 +68,17 @@
     .mini .mini-btn:active{ transform:translateY(1px); }
     .mini .mini-btn.alt{ background:rgba(255,255,255,.95); }
 
-    /* MODO COMPACTO (chip enxuto) */
-    .mini.compact{
-      padding:10px 14px;
-      min-height:auto;
-      display:flex; align-items:center; gap:10px;
-      border-radius:14px;
-      box-shadow:0 6px 18px rgba(0,0,0,.12);
-    }
+    /* Compacto */
+    .mini.compact{ padding:10px 14px; min-height:auto; display:flex; align-items:center; gap:10px; border-radius:14px; box-shadow:0 6px 18px rgba(0,0,0,.12); }
     .mini.compact .t{ display:none; }
-    .mini.compact .s{
-      display:flex; align-items:center; gap:8px;
-      white-space:nowrap;
-      font-size:13.5px;
-      line-height:1.25;
-    }
+    .mini.compact .s{ display:flex; align-items:center; gap:8px; white-space:nowrap; font-size:13.5px; line-height:1.25; }
     .mini.compact .s br{ display:none; }
     .mini.compact .mini-btn{ display:none; }
-    .mini.compact .mini-btn.alt{ display:inline-block; } /* ← mantém o botão "Definir município" visível */
-
-    .pill-ico{ font-size:16px; }
+    .mini.compact .mini-btn.alt{ display:inline-block; } /* mantém "Definir município" visível */
 
     /* Texto central + animações do status */
-    .center{
-      position:absolute; left:50%; top:var(--center-top); transform:translate(-50%,-50%);
-      width:100%; display:flex; justify-content:center; padding:0 16px; pointer-events:none; z-index:3;
-    }
+    .center{ position:absolute; left:50%; top:var(--center-top); transform:translate(-50%,-50%);
+      width:100%; display:flex; justify-content:center; padding:0 16px; pointer-events:none; z-index:3; }
     .river{ text-align:center; --shadow:0 2px 6px rgba(0,0,0,.65), 0 0 2px rgba(0,0,0,.6); }
     .icon{ font-size:48px; filter:drop-shadow(0 2px 6px rgba(0,0,0,.5)); transition:transform .45s ease; }
     .label{ margin-top:6px; font-size:14px; color:#e9f1fb; text-shadow:var(--shadow); letter-spacing:.2px; }
@@ -107,19 +86,17 @@
              transition: color .35s ease, transform .35s ease, opacity .35s ease; }
     .status.ok{ color:var(--ok); } .status.yellow{ color:var(--yellow); } .status.orange{ color:var(--orange); }
     .status.pop{ animation:pop .45s ease; }
-    @keyframes pop{
-      0%{ transform:translateY(6px) scale(.98); opacity:.6 }
-      100%{ transform:none; opacity:1 }
-    }
-    .msg{ margin-top:6px; font-size:14px; color:#f0f6ff; opacity:.95; text-shadow:var(--shadow);
-          transition: opacity .35s ease, transform .35s ease; }
+    @keyframes pop{ 0%{ transform:translateY(6px) scale(.98); opacity:.6 } 100%{ transform:none; opacity:1 } }
+    .msg{ margin-top:6px; font-size:14px; color:#f0f6ff; opacity:.95; text-shadow:var(--shadow); transition: opacity .35s ease, transform .35s ease; }
 
-    .bottom{ position:absolute; inset:auto 16px 14px 16px; display:flex; justify-content:space-between; align-items:center; gap:10px; z-index:4; }
+    /* Rodapé */
+    .bottom{ position:absolute; inset:auto 16px 10px 16px; display:flex; justify-content:space-between; align-items:center; gap:10px; z-index:4; }
     .btn{ border:0; padding:10px 14px; border-radius:12px; background:#1565c0; color:#fff; font-weight:700; cursor:pointer; box-shadow:0 6px 18px rgba(0,0,0,.25);}
     .btn:active{ transform:translateY(1px); }
     .ts{ font-size:11px; color:#e7eef6; text-shadow:0 1px 2px rgba(0,0,0,.55); }
+    #recencia{ font-size:11px; color:#e7eef6; opacity:.9; margin-left:6px; }
 
-    /* Modal município manual */
+    /* Modal genérico */
     .modal{ position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
             background:rgba(0,0,0,.45); backdrop-filter: blur(4px); z-index:10; }
     .modal.hidden{ display:none; }
@@ -127,19 +104,29 @@
                  border:1px solid rgba(255,255,255,.15); padding:16px; box-shadow:0 20px 60px rgba(0,0,0,.45); }
     .modal-card h3{ margin:0 0 10px; font-size:18px; }
     .modal-row{ display:flex; gap:8px; flex-wrap:wrap; }
-    .modal-row input{ flex:1; padding:10px 12px; border-radius:10px; border:1px solid rgba(255,255,255,.15);
-                      background:#0b141c; color:#eaf2fb; outline:none; }
+    .modal-row input, .modal-row textarea{
+      flex:1; padding:10px 12px; border-radius:10px; border:1px solid rgba(255,255,255,.15);
+      background:#0b141c; color:#eaf2fb; outline:none; width:100%;
+    }
     .modal-row .hint{ font-size:12px; opacity:.8; width:100%; margin-top:6px; }
     .modal-actions{ margin-top:12px; display:flex; gap:8px; justify-content:flex-end; }
     .btn-sec{ background:#263442; color:#eaf2fb; border:1px solid rgba(255,255,255,.15); border-radius:10px; padding:10px 12px; }
     .btn-pri{ background:#1565c0; color:#fff; border:0; border-radius:10px; padding:10px 12px; }
     .error{ color:#ffb3b3; font-size:12px; margin-top:6px; }
+
+    details.spark{ margin:6px 0 0; }
+    details.spark > summary{ cursor:pointer; list-style:none; color:#0f1720; font-size:12px; }
+    details.spark > summary::-webkit-details-marker{ display:none; }
+    .sparkwrap{ margin-top:6px; padding:6px; background:rgba(255,255,255,.6); border-radius:10px; }
+    .sharebar{ display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
+    .btn-share{ background:#25D366; color:#fff; border:0; border-radius:10px; padding:9px 12px; font-weight:700; }
+    .btn-about{ background:#263442; color:#eaf2fb; border:1px solid rgba(255,255,255,.15); border-radius:10px; padding:9px 12px; }
   </style>
 </head>
 <body>
   <div class="stage">
     <div class="app">
-      <!-- duas camadas p/ crossfade -->
+      <!-- Fundo cruzado -->
       <div class="bg" id="bgA"></div>
       <div class="bg" id="bgB"></div>
       <div class="scrim"></div>
@@ -153,9 +140,24 @@
               <span class="pill-ico">☔</span>
               <span><span id="rainVal">—</span> mm <br>em <strong id="muniName">carregando…</strong></span>
             </div>
-            <button id="btnLocate" class="mini-btn" aria-label="Usar minha localização">Usar minha localização</button>
-            <button id="btnManualMuni" class="mini-btn alt" aria-label="Definir município">Definir município</button>
+
+            <!-- Ações -->
+            <div class="sharebar">
+              <button id="btnLocate" class="mini-btn" aria-label="Usar minha localização">Usar minha localização</button>
+              <button id="btnManualMuni" class="mini-btn alt" aria-label="Definir município">Definir município</button>
+              <button id="btnShare" class="btn-share" aria-label="Compartilhar no WhatsApp">Compartilhar</button>
+            </div>
+
+            <!-- Tendência (colapsado) -->
+            <details class="spark" id="sparkDetails">
+              <summary>📈 Ver tendência (leituras recentes)</summary>
+              <div class="sparkwrap">
+                <svg id="spark" width="100%" height="40" viewBox="0 0 180 40" preserveAspectRatio="none"></svg>
+                <div class="muted" id="sparkLabel">—</div>
+              </div>
+            </details>
           </div>
+
           <!-- Deslizamento -->
           <div class="mini ok" id="cardLand">
             <div class="t">⛰️ Risco de deslizamento</div>
@@ -175,42 +177,35 @@
 
       <div class="bottom">
         <button class="btn" id="btnSwap">Forçar troca</button>
-        <div class="ts" id="ts">Atualizado em: — • chips+</div>
+        <div class="ts" id="ts">Atualizado em: — <span id="recencia"></span></div>
       </div>
     </div>
   </div>
 
   <!-- Modal Município Manual -->
-  <div id="muniModal" class="modal hidden">
+  <div id="muniModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="muniTitle">
     <div class="modal-card">
-      <h3>Definir município do sensor</h3>
+      <h3 id="muniTitle">Definir município do sensor</h3>
       <div class="modal-row">
         <input id="muniInput" type="text" list="muniList" placeholder="Ex.: Carpina" />
         <datalist id="muniList">
           <!-- Mata Norte de PE + Recife -->
-          <option value="Aliança"></option>
-          <option value="Buenos Aires"></option>
-          <option value="Camutanga"></option>
-          <option value="Carpina"></option>
-          <option value="Condado"></option>
-          <option value="Ferreiros"></option>
-          <option value="Goiana"></option>
-          <option value="Itaquitinga"></option>
-          <option value="Itambé"></option>
-          <option value="Lagoa do Carro"></option>
-          <option value="Lagoa de Itaenga"></option>
-          <option value="Macaparana"></option>
-          <option value="Nazaré da Mata"></option>
-          <option value="Paudalho"></option>
-          <option value="São Vicente Ferrer"></option>
-          <option value="Timbaúba"></option>
-          <option value="Tracunhaém"></option>
-          <option value="Vicência"></option>
+          <option value="Aliança"></option><option value="Buenos Aires"></option><option value="Camutanga"></option>
+          <option value="Carpina"></option><option value="Condado"></option><option value="Ferreiros"></option>
+          <option value="Goiana"></option><option value="Itaquitinga"></option><option value="Itambé"></option>
+          <option value="Lagoa do Carro"></option><option value="Lagoa de Itaenga"></option><option value="Macaparana"></option>
+          <option value="Nazaré da Mata"></option><option value="Paudalho"></option><option value="São Vicente Ferrer"></option>
+          <option value="Timbaúba"></option><option value="Tracunhaém"></option><option value="Vicência"></option>
           <option value="Recife"></option>
         </datalist>
         <div class="hint">Escolha da lista para garantir correspondência com os dados da APAC.</div>
         <div id="muniError" class="error" style="display:none;"></div>
       </div>
+
+      <div class="modal-row">
+        <textarea id="sensorLocInput" rows="2" placeholder="Local do sensor (ex.: Ponte X no Rio Capibaribe) — opcional"></textarea>
+      </div>
+
       <div class="modal-actions">
         <button id="closeModal" class="btn-sec">Cancelar</button>
         <button id="saveMuni" class="btn-pri">Salvar</button>
@@ -218,35 +213,42 @@
     </div>
   </div>
 
-<!-- ====== SCRIPT PRINCIPAL (APAC + GEO ROBUSTA + TRANSIÇÕES + SAFARI + MUNICÍPIO MANUAL VALIDADO) ====== -->
+  <!-- Modal Sobre & Fontes -->
+  <div id="aboutModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="aboutTitle">
+    <div class="modal-card">
+      <h3 id="aboutTitle">Sobre & fontes</h3>
+      <div class="muted" style="line-height:1.4">
+        <p><strong>AquaSense</strong> — projeto do grupo da Joana (IPA – Incentivo à Pesquisa Aplicada), orientação do Prof. Chaves (Nazaré da Mata).</p>
+        <p><strong>Chuva (24h)</strong>: <em>APAC</em> — Geoportal (camada <code>met_volume_acumulado_chuva_24hs</code>) via ArcGIS REST (consultas por município).</p>
+        <p><strong>Telemetria</strong>: sensor <em>Heltec WiFi LoRa 32</em> com ultrassom (distância da água), enviado para <code>/api/telemetria</code>.</p>
+        <p><strong>Observações</strong>: dados podem sofrer atrasos. Sempre siga orientações da Defesa Civil local.</p>
+        <p id="aboutSensorLoc" class="muted">Local do sensor: —</p>
+      </div>
+      <div class="modal-actions">
+        <button id="closeAbout" class="btn-pri">OK</button>
+      </div>
+    </div>
+  </div>
+
+<!-- ====== SCRIPT PRINCIPAL (APAC + GEO ROBUSTA + TRANSIÇÕES + SAFARI + MUNICÍPIO MANUAL + WHATSAPP + SPARKLINE) ====== -->
 <script defer>
 (function(){
-  console.log('geo robusta + crossfade + safari + manual muni validado');
   const TICK_SECONDS = 30;
-
-  /* ======= APAC (camada de municípios) ======= */
   const MAP_BASE          = 'https://geoportal.apac.pe.gov.br/server/rest/services/met_volume_acumulado_chuva_24hs/MapServer';
-  const LAYER_MUNICIPIOS  = 1;               // polígono com nm_mun + horas_24
+  const LAYER_MUNICIPIOS  = 1;
   const FIELD_NAME        = 'nm_mun';
   const FIELD_MM24        = 'horas_24';
-  const USE_PROXY         = true;            // usa /api/apac-rain.js na Vercel
+  const USE_PROXY         = true;
   const UPDATE_MIN        = 5;
-
   const IS_SAFARI = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
-  let   MUNICIPIO = localStorage.getItem('apac_muni') || 'NAZARÉ DA MATA';
 
-  /* ======= Lista canônica (Mata Norte + Recife) ======= */
-  const MUNI_LIST = [
-    'Aliança','Buenos Aires','Camutanga','Carpina','Condado','Ferreiros','Goiana',
-    'Itaquitinga','Itambé','Lagoa do Carro','Lagoa de Itaenga','Macaparana',
-    'Nazaré da Mata','Paudalho','São Vicente Ferrer','Timbaúba','Tracunhaém',
-    'Vicência','Recife'
-  ];
+  /* ======= Lista canônica ======= */
+  const MUNI_LIST = ['Aliança','Buenos Aires','Camutanga','Carpina','Condado','Ferreiros','Goiana','Itaquitinga','Itambé','Lagoa do Carro','Lagoa de Itaenga','Macaparana','Nazaré da Mata','Paudalho','São Vicente Ferrer','Timbaúba','Tracunhaém','Vicência','Recife'];
   const norm = (s)=> (s||'').toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim();
   const escQ = (s)=> (s||'').replace(/'/g,"''");
   const MUNI_CANON = Object.fromEntries(MUNI_LIST.map(n => [norm(n), n]));
 
-  /* ======= Fundo com crossfade ======= */
+  /* ======= Fundo crossfade ======= */
   const bgA = document.getElementById('bgA');
   const bgB = document.getElementById('bgB');
   let activeBg = 'A';
@@ -279,21 +281,125 @@
   const muniNameEl = document.getElementById('muniName');
   const landText = document.getElementById('landText');
   const ts = document.getElementById('ts');
+  const recencia = document.getElementById('recencia');
   const btnSwap = document.getElementById('btnSwap');
   const btnLocate = document.getElementById('btnLocate');
   const btnManualMuni = document.getElementById('btnManualMuni');
+  const btnShare = document.getElementById('btnShare');
   const cardRain = document.getElementById('cardRain');
   const cardLand = document.getElementById('cardLand');
+  const spark = document.getElementById('spark');
+  const sparkLabel = document.getElementById('sparkLabel');
+  const sparkDetails = document.getElementById('sparkDetails');
 
-  // Modal
+  // Modais
   const muniModal = document.getElementById('muniModal');
   const muniInput = document.getElementById('muniInput');
   const muniError = document.getElementById('muniError');
   const closeModal = document.getElementById('closeModal');
   const saveMuni = document.getElementById('saveMuni');
+  const sensorLocInput = document.getElementById('sensorLocInput');
 
+  const aboutModal = document.getElementById('aboutModal');
+  const closeAbout = document.getElementById('closeAbout');
+  const aboutSensorLoc = document.getElementById('aboutSensorLoc');
+
+  /* ======= Estado ======= */
+  let MUNICIPIO = localStorage.getItem('apac_muni') || 'NAZARÉ DA MATA';
+  let SENSOR_LOC = localStorage.getItem('aqs_sensor_loc') || '';
   let state = { river_level:'none', rain_mm_24h:NaN, landslide_risk:'none', ts:new Date() };
 
+  /* ======= Util ======= */
+  function fromNow(tsVal){
+    const t = (typeof tsVal==='number') ? tsVal : new Date(tsVal).getTime();
+    const s = Math.max(0, (Date.now()-t)/1000|0);
+    if (s<60) return `${s}s`; const m=(s/60|0); if (m<60) return `${m} min`; const h=(m/60|0); return `${h} h`;
+  }
+  function setRecencia(tsVal){ recencia.textContent = '• há ' + fromNow(tsVal); }
+
+  /* ======= Sparkline (tendência) ======= */
+  function histKey(muni){ return 'aqs_hist_'+norm(muni); }
+  function addHistoryPoint(muni, value){
+    const k = histKey(muni);
+    let arr = []; try{ arr = JSON.parse(localStorage.getItem(k)||'[]'); }catch{}
+    arr.push({ t: Date.now(), v: Number(value)||0 });
+    if (arr.length>32) arr = arr.slice(arr.length-32);
+    localStorage.setItem(k, JSON.stringify(arr));
+  }
+  function drawSpark(muni){
+    let arr = []; try{ arr = JSON.parse(localStorage.getItem(histKey(muni))||'[]'); }catch{}
+    if (!arr.length){ spark.innerHTML=''; sparkLabel.textContent='Sem histórico nesta sessão.'; return; }
+    const N = Math.min(arr.length, 32);
+    arr = arr.slice(arr.length-N);
+    const max = Math.max(...arr.map(p=>p.v), 1);
+    const pts = arr.map((p,i)=>{
+      const x = i * (180/(N-1));
+      const y = 40 - (p.v/max)*36 - 2;
+      return `${x},${y}`;
+    }).join(' ');
+    spark.setAttribute('viewBox','0 0 180 40');
+    spark.innerHTML = `<polyline points="${pts}" fill="none" stroke="currentColor" stroke-width="2"></polyline>`;
+    const last = arr[arr.length-1];
+    sparkLabel.textContent = `Últimas ${N} leituras • pico ${max.toFixed(1)} mm • atual ${last.v.toFixed(1)} mm`;
+  }
+  sparkDetails.addEventListener('toggle', ()=>{ if (sparkDetails.open) drawSpark(MUNICIPIO); });
+
+  /* ======= APAC proxy ======= */
+  async function fetchArcGIS(layer, params){
+    const base = USE_PROXY
+      ? `/api/apac-rain?service=${encodeURIComponent(`${MAP_BASE}/${layer}`)}&`
+      : `${MAP_BASE}/${layer}/query?`;
+    const url = base + params.toString();
+    const r = await fetch(url, { mode: 'cors', cache: 'no-store' });
+    if(!r.ok) throw new Error('APAC HTTP '+r.status);
+    return r.json();
+  }
+
+  /* ======= Geo consultas ======= */
+  async function getMunicipioByPointWithin(lat, lon){
+    const geometry = JSON.stringify({ x: lon, y: lat, spatialReference:{ wkid:4326 } });
+    const params = new URLSearchParams({ geometry, geometryType:'esriGeometryPoint', inSR:'4326',
+      spatialRel:'esriSpatialRelWithin', outFields: `${FIELD_NAME}`, returnGeometry:'false', f:'json', resultRecordCount:'1' });
+    const data = await fetchArcGIS(LAYER_MUNICIPIOS, params);
+    const a = data.features?.[0]?.attributes; return (a && a[FIELD_NAME]) ? String(a[FIELD_NAME]).trim() : '';
+  }
+  async function getMunicipioByPointBuffer(lat, lon, km=5){
+    const geometry = JSON.stringify({ x: lon, y: lat, spatialReference:{ wkid:4326 } });
+    const params = new URLSearchParams({ geometry, geometryType:'esriGeometryPoint', inSR:'4326',
+      spatialRel:'esriSpatialRelIntersects', distance:String(km), units:'Kilometers', outFields:`${FIELD_NAME}`, returnGeometry:'false', f:'json', resultRecordCount:'1' });
+    const data = await fetchArcGIS(LAYER_MUNICIPIOS, params);
+    const a = data.features?.[0]?.attributes; return (a && a[FIELD_NAME]) ? String(a[FIELD_NAME]).trim() : '';
+  }
+  async function reverseGeocodeEsri(lat, lon){
+    const url = `https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/reverseGeocode?location=${lon},${lat}&f=json`;
+    const r = await fetch(url, { mode:'cors', cache:'no-store' }); if (!r.ok) throw new Error('Reverse geocode HTTP '+r.status);
+    const j = await r.json(); return j?.address?.City || j?.address?.Subregion || j?.address?.Region || '';
+  }
+
+  /* ======= Chuva por município ======= */
+  async function getRainForMunicipio(muniRaw){
+    const muni = norm(muniRaw);
+    // 1) exato
+    let where = `UPPER(${FIELD_NAME})='${escQ(muni)}'`;
+    let params = new URLSearchParams({ where, outFields:`${FIELD_MM24},${FIELD_NAME},ultima_leitura_data_hora`, returnGeometry:'false', f:'json', resultRecordCount:'1' });
+    let data = await fetchArcGIS(LAYER_MUNICIPIOS, params);
+    if (data.features && data.features.length){
+      const a = data.features[0].attributes || {};
+      return { muni: a[FIELD_NAME] || muniRaw, mm24: Number(a[FIELD_MM24] ?? 0), ts: a.ultima_leitura_data_hora || new Date() };
+    }
+    // 2) LIKE
+    const first = escQ(muni.split(/\s+/)[0]);
+    where = `UPPER(${FIELD_NAME}) LIKE '${first}%'`;
+    params = new URLSearchParams({ where, outFields:`${FIELD_MM24},${FIELD_NAME},ultima_leitura_data_hora`, returnGeometry:'false', f:'json', resultRecordCount:'1' });
+    data = await fetchArcGIS(LAYER_MUNICIPIOS, params);
+    if (data.features && data.features.length){
+      const a = data.features[0].attributes || {};
+      return { muni: a[FIELD_NAME] || muniRaw, mm24: Number(a[FIELD_MM24] ?? 0), ts: a.ultima_leitura_data_hora || new Date() };
+    }
+    throw new Error('Município não encontrado por nome');
+  }
+
+  /* ======= UI state ======= */
   function setCardEmphasis(){
     cardRain.classList.remove('ok','warn','alert');
     cardLand.classList.remove('ok','warn','alert');
@@ -316,11 +422,7 @@
     const m = map[state.river_level]||map.none;
 
     if (prevLevel !== state.river_level) {
-      riverIcon.style.transform = 'scale(1.08)';
-      setTimeout(()=>riverIcon.style.transform='', 350);
-    }
-
-    if (riverStatus.textContent !== m.label) {
+      riverIcon.style.transform = 'scale(1.08)'; setTimeout(()=>riverIcon.style.transform='', 350);
       riverStatus.classList.remove('pop'); void riverStatus.offsetWidth; riverStatus.classList.add('pop');
     }
 
@@ -332,95 +434,21 @@
     if (!Number.isNaN(state.rain_mm_24h)) {
       rainVal.textContent = Number(state.rain_mm_24h).toFixed(1);
     }
-    landText.textContent = {
-      none:'⛰️ Nenhum',
-      yellow:'⚠️ AMARELO — monitore encostas.',
-      orange:'⛔ LARANJA — evite áreas de risco.'
-    }[state.landslide_risk] || '⛰️ Nenhum';
+    landText.textContent = { none:'⛰️ Nenhum', yellow:'⚠️ AMARELO — monitore encostas.', orange:'⛔ LARANJA — evite áreas de risco.' }[state.landslide_risk] || '⛰️ Nenhum';
 
     cardRain.classList.toggle('compact', Number(state.rain_mm_24h) < 1);
     cardLand.classList.toggle('compact', state.landslide_risk === 'none');
 
-    ts.textContent = 'Atualizado em: ' + new Date(state.ts).toLocaleString('pt-BR');
+    ts.firstChild.nodeValue = 'Atualizado em: ' + new Date(state.ts).toLocaleString('pt-BR') + ' ';
+    setRecencia(state.ts);
   }
 
-  const levels=['none','yellow','orange'];
-  const nextLevel = l => levels[(levels.indexOf(l)+1)%levels.length];
-  function randomSim(){
-    const next = nextLevel(state.river_level);
-    setState({ river_level:next, rain_mm_24h:state.rain_mm_24h, landslide_risk:state.landslide_risk, ts:new Date() });
+  function updateHistoryAndSpark(){
+    addHistoryPoint(MUNICIPIO, state.rain_mm_24h);
+    if (sparkDetails.open) drawSpark(MUNICIPIO);
   }
 
-  /* ======= APAC proxy ======= */
-  async function fetchArcGIS(layer, params){
-    const base = USE_PROXY
-      ? `/api/apac-rain?service=${encodeURIComponent(`${MAP_BASE}/${layer}`)}&`
-      : `${MAP_BASE}/${layer}/query?`;
-    const url = base + params.toString();
-    const r = await fetch(url, { mode: 'cors', cache: 'no-store' });
-    if(!r.ok) throw new Error('APAC HTTP '+r.status);
-    return r.json();
-  }
-
-  /* ======= Ponto -> Município: 3 tentativas ======= */
-  async function getMunicipioByPointWithin(lat, lon){
-    const geometry = JSON.stringify({ x: lon, y: lat, spatialReference:{ wkid:4326 } });
-    const params = new URLSearchParams({
-      geometry, geometryType: 'esriGeometryPoint', inSR: '4326',
-      spatialRel: 'esriSpatialRelWithin', outFields: `${FIELD_NAME}`,
-      returnGeometry: 'false', f: 'json', resultRecordCount: '1'
-    });
-    const data = await fetchArcGIS(LAYER_MUNICIPIOS, params);
-    const a = data.features?.[0]?.attributes; return (a && a[FIELD_NAME]) ? String(a[FIELD_NAME]).trim() : '';
-  }
-  async function getMunicipioByPointBuffer(lat, lon, km=5){
-    const geometry = JSON.stringify({ x: lon, y: lat, spatialReference:{ wkid:4326 } });
-    const params = new URLSearchParams({
-      geometry, geometryType: 'esriGeometryPoint', inSR: '4326',
-      spatialRel: 'esriSpatialRelIntersects', distance: String(km), units:'Kilometers',
-      outFields: `${FIELD_NAME}`, returnGeometry:'false', f:'json', resultRecordCount:'1'
-    });
-    const data = await fetchArcGIS(LAYER_MUNICIPIOS, params);
-    const a = data.features?.[0]?.attributes; return (a && a[FIELD_NAME]) ? String(a[FIELD_NAME]).trim() : '';
-  }
-  async function reverseGeocodeEsri(lat, lon){
-    const url = `https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/reverseGeocode?location=${lon},${lat}&f=json`;
-    const r = await fetch(url, { mode:'cors', cache:'no-store' });
-    if (!r.ok) throw new Error('Reverse geocode HTTP '+r.status);
-    const j = await r.json();
-    return j?.address?.City || j?.address?.Subregion || j?.address?.Region || '';
-  }
-
-  /* ======= Chuva para município (exato e fallback LIKE) ======= */
-  async function getRainForMunicipio(muniRaw){
-    const muni = norm(muniRaw);
-    // 1) exato
-    let where = `UPPER(${FIELD_NAME})='${escQ(muni)}'`;
-    let params = new URLSearchParams({
-      where, outFields: `${FIELD_MM24},${FIELD_NAME},ultima_leitura_data_hora`,
-      returnGeometry: 'false', f: 'json', resultRecordCount: '1'
-    });
-    let data = await fetchArcGIS(LAYER_MUNICIPIOS, params);
-    if (data.features && data.features.length){
-      const a = data.features[0].attributes || {};
-      return { muni: a[FIELD_NAME] || muniRaw, mm24: Number(a[FIELD_MM24] ?? 0), ts: a.ultima_leitura_data_hora || new Date() };
-    }
-    // 2) LIKE
-    const first = escQ(muni.split(/\s+/)[0]);
-    where = `UPPER(${FIELD_NAME}) LIKE '${first}%'`;
-    params = new URLSearchParams({
-      where, outFields: `${FIELD_MM24},${FIELD_NAME},ultima_leitura_data_hora`,
-      returnGeometry: 'false', f: 'json', resultRecordCount: '1'
-    });
-    data = await fetchArcGIS(LAYER_MUNICIPIOS, params);
-    if (data.features && data.features.length){
-      const a = data.features[0].attributes || {};
-      return { muni: a[FIELD_NAME] || muniRaw, mm24: Number(a[FIELD_MM24] ?? 0), ts: a.ultima_leitura_data_hora || new Date() };
-    }
-    throw new Error('Município não encontrado por nome');
-  }
-
-  /* ======= Atualizar UI com chuva ======= */
+  /* ======= Atualizar chuva ======= */
   async function atualizarChuva(){
     try{
       const { muni, mm24, ts:tsRow } = await getRainForMunicipio(MUNICIPIO);
@@ -433,19 +461,18 @@
       else if (mm24 > 80) land = 'yellow';
 
       setState({ river_level: state.river_level, rain_mm_24h: mm24, landslide_risk: land, ts: tsRow });
+      updateHistoryAndSpark();
     }catch(e){ console.warn('[APAC]', e); }
   }
 
-  /* ======= Geo flow (robusto + Safari) ======= */
+  /* ======= Geo flow ======= */
   const CAN_GEO = (location.protocol === 'https:' || location.hostname === 'localhost');
   async function geolocateAndSetMunicipio(){
     if(!CAN_GEO || !('geolocation' in navigator)) return;
     try{
       btnLocate.textContent = 'Localizando…'; btnLocate.disabled = true;
       const pos = await new Promise((res,rej)=>{
-        navigator.geolocation.getCurrentPosition(res, rej, {
-          enableHighAccuracy: true, maximumAge: 0, timeout: 15000
-        });
+        navigator.geolocation.getCurrentPosition(res, rej, { enableHighAccuracy:true, maximumAge:0, timeout:15000 });
       });
       const { latitude, longitude, accuracy } = pos.coords;
 
@@ -454,11 +481,9 @@
       if (!muni) muni = await reverseGeocodeEsri(latitude, longitude);
       if (!muni) throw new Error('Não foi possível identificar o município');
 
-      MUNICIPIO = muni;
+      MUNICIPIO = muni; localStorage.setItem('apac_muni', muni);
       muniNameEl.textContent = muni;
-      localStorage.setItem('apac_muni', muni);
       await atualizarChuva();
-      // Não escondemos o botão manual; apenas o de geo se quiser:
       btnLocate.style.display='none';
     }catch(e){
       console.warn('Geo falhou/negada:', e);
@@ -472,85 +497,115 @@
   muniNameEl.textContent = MUNICIPIO;
   setState(state);
   atualizarChuva();
+  setInterval(atualizarChuva, UPDATE_MIN*60*1000);
+  setInterval(()=>setRecencia(state.ts), 30*1000); // atualiza o "há X min"
 
   // Botões
   if (CAN_GEO) btnLocate.addEventListener('click', geolocateAndSetMunicipio);
 
   btnManualMuni.addEventListener('click', ()=>{
-    muniError.style.display='none';
-    muniError.textContent='';
+    muniError.style.display='none'; muniError.textContent='';
     muniInput.value = MUNI_CANON[norm(MUNICIPIO)] || MUNICIPIO;
+    sensorLocInput.value = SENSOR_LOC;
     muniModal.classList.remove('hidden');
     setTimeout(()=>muniInput.focus(), 50);
   });
-  function closeMuniModal(){ muniModal.classList.add('hidden'); }
+  const closeMuniModal = ()=> muniModal.classList.add('hidden');
   closeModal.addEventListener('click', closeMuniModal);
   saveMuni.addEventListener('click', async ()=>{
     const typed = (muniInput.value||'').trim();
     const canon = MUNI_CANON[norm(typed)];
-    if (!canon) {
-      muniError.textContent = 'Município não encontrado na lista. Escolha um da lista.';
-      muniError.style.display='block';
-      return;
-    }
+    if (!canon) { muniError.textContent='Município não encontrado na lista. Escolha um da lista.'; muniError.style.display='block'; return; }
     try{
-      // valida com a APAC; se não tiver dado retorna erro
-      await getRainForMunicipio(canon);
-      MUNICIPIO = canon;
-      localStorage.setItem('apac_muni', canon);
+      await getRainForMunicipio(canon); // valida contra APAC
+      MUNICIPIO = canon; localStorage.setItem('apac_muni', canon);
       muniNameEl.textContent = canon;
+      SENSOR_LOC = (sensorLocInput.value||'').trim();
+      localStorage.setItem('aqs_sensor_loc', SENSOR_LOC);
+      aboutSensorLoc.textContent = 'Local do sensor: ' + (SENSOR_LOC || '—');
       await atualizarChuva();
       closeMuniModal();
     }catch(e){
-      muniError.textContent = 'Sem dados disponíveis para "'+canon+'". Tente outro município.';
-      muniError.style.display='block';
+      muniError.textContent = 'Sem dados disponíveis para "'+canon+'". Tente outro município.'; muniError.style.display='block';
     }
   });
 
-  // Auto-prompt (evita no Safari)
-  if (!IS_SAFARI && CAN_GEO && window.top === window.self) {
-    if ('permissions' in navigator && navigator.permissions.query) {
-      navigator.permissions.query({ name: 'geolocation' }).then(perm => {
-        if (perm.state === 'granted') geolocateAndSetMunicipio();
-        else if (perm.state === 'prompt') setTimeout(() => geolocateAndSetMunicipio(), 400);
-        perm.onchange = () => { if (perm.state === 'granted') geolocateAndSetMunicipio(); };
-      }).catch(() => setTimeout(() => geolocateAndSetMunicipio(), 400));
-    } else {
-      setTimeout(() => geolocateAndSetMunicipio(), 400);
-    }
-  }
+  // WhatsApp share
+  btnShare.addEventListener('click', ()=>{
+    const cidade = muniNameEl.textContent.trim();
+    const chuva = rainVal.textContent.trim();
+    const status = riverStatus.textContent.trim();
+    const dist = document.getElementById('ultra-val')?.textContent?.trim();
+    const loc = (SENSOR_LOC||'').trim();
+    const tsTxt = ts.textContent.replace('Atualizado em:','').trim();
+    let base = `AquaSense • ${cidade}\nChuva (24h): ${chuva} mm\nStatus do rio: ${status}`;
+    if (dist && dist !== '—' && !/Erro/i.test(dist)) base += `\nDistância da água: ${dist}`;
+    if (loc) base += `\nSensor: ${loc}`;
+    base += `\n${tsTxt}\nAcesse: aquasenseipa.vercel.app`;
+    location.href = 'https://wa.me/?text=' + encodeURIComponent(base);
+  });
 
-  setInterval(atualizarChuva, UPDATE_MIN*60*1000);
-  randomSim(); setInterval(randomSim, TICK_SECONDS*1000);
+  // Sobre & fontes (abrir com longo toque no título, ou chame como quiser)
+  document.addEventListener('keydown', (e)=>{ if(e.key==='F1'){ e.preventDefault(); openAbout(); }});
+  function openAbout(){
+    aboutSensorLoc.textContent = 'Local do sensor: ' + (SENSOR_LOC || '—');
+    aboutModal.classList.remove('hidden');
+  }
+  closeAbout.addEventListener('click', ()=> aboutModal.classList.add('hidden'));
+
+  // Simulação (dev)
+  const levels=['none','yellow','orange']; const nextLevel = l => levels[(levels.indexOf(l)+1)%levels.length];
+  function randomSim(){ const next = nextLevel(state.river_level); setState({ river_level:next, rain_mm_24h:state.rain_mm_24h, landslide_risk:state.landslide_risk, ts:new Date() }); }
   btnSwap.addEventListener('click', randomSim);
 })();
 </script>
 
 <!-- ====== BLOCO DO ULTRASSÔMICO (telemetria) ====== -->
 <div id="ultra-box" style="margin:8px 16px; font-weight:600;">
-  Distância da água: <span id="ultra-val">—</span>
+  Distância da água: <span id="ultra-val">—</span> <span id="ultra-age" class="muted"></span>
+  <div id="ultra-loc" class="muted"></div>
 </div>
 
 <script>
 (() => {
+  const ultraVal = document.getElementById('ultra-val');
+  const ultraAge = document.getElementById('ultra-age');
+  const ultraLoc = document.getElementById('ultra-loc');
+
+  function fromNow(tsVal){
+    const t = (typeof tsVal==='number') ? tsVal : new Date(tsVal).getTime();
+    const s = Math.max(0, (Date.now()-t)/1000|0);
+    if (s<60) return `${s}s`; const m=(s/60|0); if (m<60) return `${m} min`; const h=(m/60|0); return `${h} h`;
+  }
+  function refreshLoc(){
+    const loc = localStorage.getItem('aqs_sensor_loc') || '';
+    ultraLoc.textContent = loc ? ('Local do sensor: ' + loc) : '';
+  }
+  refreshLoc();
+
   async function loadUltrassom() {
     try {
       const r = await fetch('/api/telemetria', { cache: 'no-store' });
       const data = await r.json();
       const dev = data?.['heltec-01'] || (Object.values(data || {})[0] || null);
       if (dev?.data?.distance_cm != null) {
-        document.getElementById('ultra-val').textContent =
-          dev.data.distance_cm.toFixed(1) + ' cm';
+        ultraVal.textContent = dev.data.distance_cm.toFixed(1) + ' cm';
+        const ts = dev?.received_at || dev?.data?.ts*1000;
+        if (ts) ultraAge.textContent = '• há ' + fromNow(ts);
       } else {
-        document.getElementById('ultra-val').textContent = '—';
+        ultraVal.textContent = '—'; ultraAge.textContent = '';
       }
     } catch (e) {
-      document.getElementById('ultra-val').textContent = 'Erro';
+      ultraVal.textContent = 'Erro'; ultraAge.textContent = '';
     }
   }
   loadUltrassom();
   setInterval(loadUltrassom, 3000);
+  setInterval(()=>{ // atualiza o "há X" da telemetria sem novo fetch
+    const m = ultraAge.textContent.match(/há (\d+)(?:\s|\w)*/i);
+  }, 15000);
 })();
 </script>
+
 </body>
 </html>
