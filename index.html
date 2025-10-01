@@ -7,7 +7,7 @@
   <style>
     :root{
       --ok:#2e7d32; --yellow:#f9a825; --orange:#ef6c00; --text:#fff;
-      --center-top:34%; /* ↓ levemente mais baixo pra não cobrir os cards */
+      --center-top:34%; /* baixo o suficiente p/ não cobrir os cards */
       --glass-bg1:rgba(255,255,255,.55);
       --glass-bg2:rgba(255,255,255,.35);
       --glass-brd:rgba(255,255,255,.55);
@@ -18,9 +18,11 @@
     .stage{ min-height:100vh; display:grid; place-items:center; padding:16px; }
     .app{ width:390px; height:780px; position:relative; overflow:hidden; border-radius:28px;
       box-shadow:0 20px 60px rgba(0,0,0,.35), 0 2px 10px rgba(0,0,0,.25); background:#000; }
+    .app.push-center{ --center-top:40%; } /* ↓ quando abre o sparkline */
+
     @media (max-width:480px){ .app{ width:100vw; height:100vh; border-radius:0; box-shadow:none; } }
 
-    /* Fundo com crossfade (duas camadas) */
+    /* Fundo com crossfade */
     .bg{ position:absolute; inset:0; background:#000 center/cover no-repeat;
          filter: brightness(var(--bg-bright)) contrast(1.05) saturate(1.06);
          opacity:0; transform:scale(1.02);
@@ -59,7 +61,7 @@
     .pill-ico{ font-size:16px; }
     .muted{ color:var(--muted); font-size:12px; opacity:.95; }
 
-    /* Botões */
+    /* Botões dentro do card */
     .mini .mini-btn{
       margin-top:6px; font-size:11px; padding:10px 12px; border-radius:12px;
       border:1px solid rgba(0,0,0,.08); background:rgba(255,255,255,.85);
@@ -90,13 +92,31 @@
     .msg{ margin-top:6px; font-size:14px; color:#f0f6ff; opacity:.95; text-shadow:var(--shadow); transition: opacity .35s ease, transform .35s ease; }
 
     /* Rodapé */
-    .bottom{ position:absolute; inset:auto 16px 10px 16px; display:flex; justify-content:space-between; align-items:center; gap:10px; z-index:4; }
+    .bottom{ position:absolute; inset:auto 12px 10px 12px; display:flex; align-items:center; gap:10px; z-index:4; flex-wrap:wrap; }
+    .bottom .left{ flex:0 0 auto; }
+    .bottom .mid{ flex:1 1 auto; min-width:160px; }
+    .bottom .right{ flex:0 0 auto; }
+
     .btn{ border:0; padding:10px 14px; border-radius:12px; background:#1565c0; color:#fff; font-weight:700; cursor:pointer; box-shadow:0 6px 18px rgba(0,0,0,.25);}
     .btn:active{ transform:translateY(1px); }
-    .ts{ font-size:11px; color:#e7eef6; text-shadow:0 1px 2px rgba(0,0,0,.55); }
-    #recencia{ font-size:11px; color:#e7eef6; opacity:.9; margin-left:6px; }
+    .btn-share-bottom{ background:#25D366; }
+    .ts{ font-size:11px; color:#e7eef6; text-shadow:0 1px 2px rgba(0,0,0,.55); white-space:nowrap; }
+    #recencia{ font-size:11px; color:#e7eef6; opacity:.9; margin-left:6px; white-space:nowrap; }
 
-    /* Modal genérico */
+    /* Sparkline (mais opaco) */
+    details.spark{ margin:8px 0 0; }
+    details.spark > summary{
+      cursor:pointer; list-style:none; color:#0a0f14; font-size:12px;
+      background:rgba(255,255,255,.92); border:1px solid var(--glass-brd);
+      display:inline-block; padding:6px 8px; border-radius:10px;
+    }
+    details.spark > summary::-webkit-details-marker{ display:none; }
+    .sparkwrap{
+      margin-top:8px; padding:8px; background:rgba(255,255,255,.85);
+      border:1px solid var(--glass-brd); border-radius:10px; color:#0a0f14;
+    }
+
+    /* Modais */
     .modal{ position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
             background:rgba(0,0,0,.45); backdrop-filter: blur(4px); z-index:10; }
     .modal.hidden{ display:none; }
@@ -113,19 +133,11 @@
     .btn-sec{ background:#263442; color:#eaf2fb; border:1px solid rgba(255,255,255,.15); border-radius:10px; padding:10px 12px; }
     .btn-pri{ background:#1565c0; color:#fff; border:0; border-radius:10px; padding:10px 12px; }
     .error{ color:#ffb3b3; font-size:12px; margin-top:6px; }
-
-    details.spark{ margin:6px 0 0; }
-    details.spark > summary{ cursor:pointer; list-style:none; color:#0f1720; font-size:12px; }
-    details.spark > summary::-webkit-details-marker{ display:none; }
-    .sparkwrap{ margin-top:6px; padding:6px; background:rgba(255,255,255,.6); border-radius:10px; }
-    .sharebar{ display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
-    .btn-share{ background:#25D366; color:#fff; border:0; border-radius:10px; padding:9px 12px; font-weight:700; }
-    .btn-about{ background:#263442; color:#eaf2fb; border:1px solid rgba(255,255,255,.15); border-radius:10px; padding:9px 12px; }
   </style>
 </head>
 <body>
   <div class="stage">
-    <div class="app">
+    <div class="app" id="appRoot">
       <!-- Fundo cruzado -->
       <div class="bg" id="bgA"></div>
       <div class="bg" id="bgB"></div>
@@ -141,15 +153,14 @@
               <span><span id="rainVal">—</span> mm <br>em <strong id="muniName">carregando…</strong></span>
             </div>
 
-            <!-- Ações -->
-            <div class="sharebar">
+            <!-- Ações essenciais no card -->
+            <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:6px;">
               <button id="btnLocate" class="mini-btn" aria-label="Usar minha localização">Usar minha localização</button>
               <button id="btnManualMuni" class="mini-btn alt" aria-label="Definir município">Definir município</button>
-              <button id="btnShare" class="btn-share" aria-label="Compartilhar no WhatsApp">Compartilhar</button>
             </div>
 
-            <!-- Tendência (colapsado) -->
-            <details class="spark" id="sparkDetails">
+            <!-- Tendência (só aparece com 2+ pontos) -->
+            <details class="spark" id="sparkDetails" style="display:none;">
               <summary>📈 Ver tendência (leituras recentes)</summary>
               <div class="sparkwrap">
                 <svg id="spark" width="100%" height="40" viewBox="0 0 180 40" preserveAspectRatio="none"></svg>
@@ -176,8 +187,9 @@
       </div>
 
       <div class="bottom">
-        <button class="btn" id="btnSwap">Forçar troca</button>
-        <div class="ts" id="ts">Atualizado em: — <span id="recencia"></span></div>
+        <div class="left"><button class="btn" id="btnSwap" title="Simular troca (teste)">Forçar troca</button></div>
+        <div class="mid"><div class="ts" id="ts">Atualizado em: — <span id="recencia"></span></div></div>
+        <div class="right"><button class="btn btn-share-bottom" id="btnShare" aria-label="Compartilhar no WhatsApp">Compartilhar</button></div>
       </div>
     </div>
   </div>
@@ -230,7 +242,7 @@
     </div>
   </div>
 
-<!-- ====== SCRIPT PRINCIPAL (APAC + GEO ROBUSTA + TRANSIÇÕES + SAFARI + MUNICÍPIO MANUAL + WHATSAPP + SPARKLINE) ====== -->
+<!-- ====== SCRIPT PRINCIPAL ====== -->
 <script defer>
 (function(){
   const TICK_SECONDS = 30;
@@ -249,6 +261,7 @@
   const MUNI_CANON = Object.fromEntries(MUNI_LIST.map(n => [norm(n), n]));
 
   /* ======= Fundo crossfade ======= */
+  const appRoot = document.getElementById('appRoot');
   const bgA = document.getElementById('bgA');
   const bgB = document.getElementById('bgB');
   let activeBg = 'A';
@@ -317,7 +330,7 @@
   }
   function setRecencia(tsVal){ recencia.textContent = '• há ' + fromNow(tsVal); }
 
-  /* ======= Sparkline (tendência) ======= */
+  /* ======= Sparkline (histórico local da sessão) ======= */
   function histKey(muni){ return 'aqs_hist_'+norm(muni); }
   function addHistoryPoint(muni, value){
     const k = histKey(muni);
@@ -326,9 +339,18 @@
     if (arr.length>32) arr = arr.slice(arr.length-32);
     localStorage.setItem(k, JSON.stringify(arr));
   }
+  function getHistory(muni){
+    try{ return JSON.parse(localStorage.getItem(histKey(muni))||'[]'); }catch{return [];}
+  }
   function drawSpark(muni){
-    let arr = []; try{ arr = JSON.parse(localStorage.getItem(histKey(muni))||'[]'); }catch{}
-    if (!arr.length){ spark.innerHTML=''; sparkLabel.textContent='Sem histórico nesta sessão.'; return; }
+    let arr = getHistory(muni);
+    if (arr.length < 2){ // esconde se só tem 0/1 ponto
+      sparkDetails.open = false;
+      sparkDetails.style.display = 'none';
+      appRoot.classList.remove('push-center');
+      return;
+    }
+    sparkDetails.style.display = '';
     const N = Math.min(arr.length, 32);
     arr = arr.slice(arr.length-N);
     const max = Math.max(...arr.map(p=>p.v), 1);
@@ -342,7 +364,10 @@
     const last = arr[arr.length-1];
     sparkLabel.textContent = `Últimas ${N} leituras • pico ${max.toFixed(1)} mm • atual ${last.v.toFixed(1)} mm`;
   }
-  sparkDetails.addEventListener('toggle', ()=>{ if (sparkDetails.open) drawSpark(MUNICIPIO); });
+  sparkDetails.addEventListener('toggle', ()=>{
+    if (sparkDetails.open){ appRoot.classList.add('push-center'); drawSpark(MUNICIPIO); }
+    else { appRoot.classList.remove('push-center'); }
+  });
 
   /* ======= APAC proxy ======= */
   async function fetchArcGIS(layer, params){
@@ -381,7 +406,8 @@
     const muni = norm(muniRaw);
     // 1) exato
     let where = `UPPER(${FIELD_NAME})='${escQ(muni)}'`;
-    let params = new URLSearchParams({ where, outFields:`${FIELD_MM24},${FIELD_NAME},ultima_leitura_data_hora`, returnGeometry:'false', f:'json', resultRecordCount:'1' });
+    let params = new URLSearchParams({ where, outFields:`${FIELD_MM24},${FIELD_NAME},ultima_leitura_data_hora`,
+      returnGeometry:'false', f:'json', resultRecordCount:'1' });
     let data = await fetchArcGIS(LAYER_MUNICIPIOS, params);
     if (data.features && data.features.length){
       const a = data.features[0].attributes || {};
@@ -390,7 +416,8 @@
     // 2) LIKE
     const first = escQ(muni.split(/\s+/)[0]);
     where = `UPPER(${FIELD_NAME}) LIKE '${first}%'`;
-    params = new URLSearchParams({ where, outFields:`${FIELD_MM24},${FIELD_NAME},ultima_leitura_data_hora`, returnGeometry:'false', f:'json', resultRecordCount:'1' });
+    params = new URLSearchParams({ where, outFields:`${FIELD_MM24},${FIELD_NAME},ultima_leitura_data_hora`,
+      returnGeometry:'false', f:'json', resultRecordCount:'1' });
     data = await fetchArcGIS(LAYER_MUNICIPIOS, params);
     if (data.features && data.features.length){
       const a = data.features[0].attributes || {};
@@ -431,9 +458,7 @@
     riverStatus.textContent = m.label;
     riverMsg.textContent = m.msg;
 
-    if (!Number.isNaN(state.rain_mm_24h)) {
-      rainVal.textContent = Number(state.rain_mm_24h).toFixed(1);
-    }
+    if (!Number.isNaN(state.rain_mm_24h)) rainVal.textContent = Number(state.rain_mm_24h).toFixed(1);
     landText.textContent = { none:'⛰️ Nenhum', yellow:'⚠️ AMARELO — monitore encostas.', orange:'⛔ LARANJA — evite áreas de risco.' }[state.landslide_risk] || '⛰️ Nenhum';
 
     cardRain.classList.toggle('compact', Number(state.rain_mm_24h) < 1);
@@ -445,15 +470,14 @@
 
   function updateHistoryAndSpark(){
     addHistoryPoint(MUNICIPIO, state.rain_mm_24h);
-    if (sparkDetails.open) drawSpark(MUNICIPIO);
+    drawSpark(MUNICIPIO); // isso já esconde se tiver <2 pontos
   }
 
   /* ======= Atualizar chuva ======= */
   async function atualizarChuva(){
     try{
       const { muni, mm24, ts:tsRow } = await getRainForMunicipio(MUNICIPIO);
-      MUNICIPIO = muni;
-      localStorage.setItem('apac_muni', muni);
+      MUNICIPIO = muni; localStorage.setItem('apac_muni', muni);
       muniNameEl.textContent = muni;
 
       let land = 'none';
@@ -498,7 +522,7 @@
   setState(state);
   atualizarChuva();
   setInterval(atualizarChuva, UPDATE_MIN*60*1000);
-  setInterval(()=>setRecencia(state.ts), 30*1000); // atualiza o "há X min"
+  setInterval(()=>setRecencia(state.ts), 30*1000); // “há X min”
 
   // Botões
   if (CAN_GEO) btnLocate.addEventListener('click', geolocateAndSetMunicipio);
@@ -530,27 +554,31 @@
     }
   });
 
-  // WhatsApp share
+  // WhatsApp share (inclui tipo de aviso)
+  function riskShareText(code){
+    if (code==='orange') return 'ALARANJADO — evite áreas de risco';
+    if (code==='yellow') return 'AMARELO — atenção';
+    return 'Nenhum';
+    }
   btnShare.addEventListener('click', ()=>{
     const cidade = muniNameEl.textContent.trim();
     const chuva = rainVal.textContent.trim();
-    const status = riverStatus.textContent.trim();
+    const nivel = riverStatus.textContent.trim(); // Normal / Alerta...
+    const risco = riskShareText(state.landslide_risk);
     const dist = document.getElementById('ultra-val')?.textContent?.trim();
     const loc = (SENSOR_LOC||'').trim();
     const tsTxt = ts.textContent.replace('Atualizado em:','').trim();
-    let base = `AquaSense • ${cidade}\nChuva (24h): ${chuva} mm\nStatus do rio: ${status}`;
+
+    let base = `AquaSense • ${cidade}\nChuva (24h): ${chuva} mm\nRisco de deslizamento: ${risco}\nNível do rio: ${nivel}`;
     if (dist && dist !== '—' && !/Erro/i.test(dist)) base += `\nDistância da água: ${dist}`;
     if (loc) base += `\nSensor: ${loc}`;
     base += `\n${tsTxt}\nAcesse: aquasenseipa.vercel.app`;
     location.href = 'https://wa.me/?text=' + encodeURIComponent(base);
   });
 
-  // Sobre & fontes (abrir com longo toque no título, ou chame como quiser)
+  // Sobre & fontes: abrir com F1 (ou cria um botão se quiser)
   document.addEventListener('keydown', (e)=>{ if(e.key==='F1'){ e.preventDefault(); openAbout(); }});
-  function openAbout(){
-    aboutSensorLoc.textContent = 'Local do sensor: ' + (SENSOR_LOC || '—');
-    aboutModal.classList.remove('hidden');
-  }
+  function openAbout(){ aboutSensorLoc.textContent = 'Local do sensor: ' + (SENSOR_LOC || '—'); aboutModal.classList.remove('hidden'); }
   closeAbout.addEventListener('click', ()=> aboutModal.classList.add('hidden'));
 
   // Simulação (dev)
@@ -601,9 +629,6 @@
   }
   loadUltrassom();
   setInterval(loadUltrassom, 3000);
-  setInterval(()=>{ // atualiza o "há X" da telemetria sem novo fetch
-    const m = ultraAge.textContent.match(/há (\d+)(?:\s|\w)*/i);
-  }, 15000);
 })();
 </script>
 
