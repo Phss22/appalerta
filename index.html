@@ -46,7 +46,7 @@
     .mini .s{
       line-height:1.25; color:#2d3a45;
       display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; overflow-wrap:anywhere;
-      margin-bottom:8px; /* espaço extra p/ não “engolir” o texto da cidade */
+      margin-bottom:8px; /* evita “engolir” a linha da cidade */
     }
     .mini.alert{ border-color: rgba(239,108,0,.55); box-shadow:0 10px 24px rgba(239,108,0,.18); }
     .mini.warn { border-color: rgba(249,168,37,.55); box-shadow:0 10px 24px rgba(249,168,37,.18); }
@@ -55,11 +55,11 @@
     .pill-ico{ font-size:16px; }
     .muted{ color:var(--muted); font-size:12px; opacity:.95; }
 
-    .mini .mini-btn{ margin-top:0; font-size:11px; padding:10px 12px; border-radius:12px;
+    .mini .mini-btn{ font-size:11px; padding:10px 12px; border-radius:12px;
       border:1px solid rgba(0,0,0,.08); background:rgba(255,255,255,.85); color:#0f1720; cursor:pointer; }
     .mini .mini-btn.alt{ background:rgba(255,255,255,.95); }
+    .actions{ display:flex; gap:8px; flex-wrap:wrap; }
 
-    .actions{ display:flex; gap:8px; flex-wrap:wrap; margin-top:0; } /* linha de botões */
     .mini.compact{ padding:10px 14px; min-height:auto; display:flex; align-items:center; gap:10px; border-radius:14px; box-shadow:0 6px 18px rgba(0,0,0,.12); }
     .mini.compact .t{ display:none; }
     .mini.compact .s{ display:flex; align-items:center; gap:8px; white-space:nowrap; font-size:13.5px; overflow:hidden; text-overflow:ellipsis; }
@@ -210,8 +210,8 @@
   const LAYER_MUNICIPIOS=1, FIELD_NAME='nm_mun', FIELD_MM24='horas_24';
   const USE_PROXY=true;
   const UPDATE_MIN_RAIN=5;                   // chuva: consulta a cada 5 min
-  const POLL_TELEM_SEC=5;                    // consulta API /api/telemetria a cada 5s
-  const EXPECT_TELEM_PERIOD_SEC=15;          // período esperado do HELTEC (15s) -> usado no contador
+  const POLL_TELEM_SEC=5;                    // consulta API de telemetria a cada 5s
+  const EXPECT_TELEM_PERIOD_SEC=15;          // período esperado do HELTEC (15s)
   const MUNI_LIST=['Aliança','Buenos Aires','Camutanga','Carpina','Condado','Ferreiros','Goiana','Itaquitinga','Itambé','Lagoa do Carro','Lagoa de Itaenga','Macaparana','Nazaré da Mata','Paudalho','São Vicente Ferrer','Timbaúba','Tracunhaém','Vicência','Recife'];
 
   // ===== DOM =====
@@ -280,18 +280,63 @@
       renderUI(); updateHistoryAndSpark();
     }catch(e){ console.warn('[APAC]',e); }
   }
+
+  // ==== CORREÇÃO: busca robusta por município (com e sem acento; LIKE) ====
   async function getRainForMunicipio(muniRaw){
-    const muni=norm(muniRaw);
-    let where=`UPPER(${FIELD_NAME})='${escQ(muni)}'`;
-    let params=new URLSearchParams({where,outFields:`${FIELD_MM24},${FIELD_NAME},ultima_leitura_data_hora`,returnGeometry:'false',f:'json',resultRecordCount:'1'});
-    let data=await fetchArcGIS(LAYER_MUNICIPIOS,params);
-    if(data.features?.length){const a=data.features[0].attributes||{};return{muni:a[FIELD_NAME]||muniRaw,mm24:Number(a[FIELD_MM24]??0),ts:a.ultima_leitura_data_hora||Date.now()};}
-    const first=escQ(muni.split(/\s+/)[0]); where=`UPPER(${FIELD_NAME}) LIKE '${first}%'`;
-    params=new URLSearchParams({where,outFields:`${FIELD_MM24},${FIELD_NAME},ultima_leitura_data_hora`,returnGeometry:'false',f:'json',resultRecordCount:'1'});
-    data=await fetchArcGIS(LAYER_MUNICIPIOS,params);
-    if(data.features?.length){const a=data.features[0].attributes||{};return{muni:a[FIELD_NAME]||muniRaw,mm24:Number(a[FIELD_MM24]??0),ts:a.ultima_leitura_data_hora||Date.now()};}
+    const muniUpper = (muniRaw||'').toString().trim().toUpperCase(); // com acento
+    const muniNorm  = norm(muniRaw);                                 // sem acento
+
+    // 1) Exato COM acento
+    let where = `UPPER(${FIELD_NAME})='${escQ(muniUpper)}'`;
+    let params = new URLSearchParams({
+      where, outFields:`${FIELD_MM24},${FIELD_NAME},ultima_leitura_data_hora`,
+      returnGeometry:'false', f:'json', resultRecordCount:'1'
+    });
+    let data = await fetchArcGIS(LAYER_MUNICIPIOS, params);
+
+    // 2) Exato SEM acento
+    if(!data.features?.length){
+      where = `UPPER(${FIELD_NAME})='${escQ(muniNorm)}'`;
+      params = new URLSearchParams({
+        where, outFields:`${FIELD_MM24},${FIELD_NAME},ultima_leitura_data_hora`,
+        returnGeometry:'false', f:'json', resultRecordCount:'1'
+      });
+      data = await fetchArcGIS(LAYER_MUNICIPIOS, params);
+    }
+
+    // 3) LIKE pela primeira palavra COM acento
+    if(!data.features?.length){
+      const firstAcc = escQ(muniUpper.split(/\s+/)[0]); // "NAZARÉ"
+      where = `UPPER(${FIELD_NAME}) LIKE '${firstAcc}%'`;
+      params = new URLSearchParams({
+        where, outFields:`${FIELD_MM24},${FIELD_NAME},ultima_leitura_data_hora`,
+        returnGeometry:'false', f:'json', resultRecordCount:'1'
+      });
+      data = await fetchArcGIS(LAYER_MUNICIPIOS, params);
+    }
+
+    // 4) LIKE pela primeira palavra SEM acento
+    if(!data.features?.length){
+      const firstNo = escQ(muniNorm.split(/\s+/)[0]);   // "NAZARE"
+      where = `UPPER(${FIELD_NAME}) LIKE '${firstNo}%'`;
+      params = new URLSearchParams({
+        where, outFields:`${FIELD_MM24},${FIELD_NAME},ultima_leitura_data_hora`,
+        returnGeometry:'false', f:'json', resultRecordCount:'1'
+      });
+      data = await fetchArcGIS(LAYER_MUNICIPIOS, params);
+    }
+
+    if(data.features?.length){
+      const a = data.features[0].attributes || {};
+      return {
+        muni: a[FIELD_NAME] || muniRaw,
+        mm24: Number(a[FIELD_MM24] ?? 0),
+        ts:   a.ultima_leitura_data_hora || Date.now()
+      };
+    }
     throw new Error('Município não encontrado');
   }
+
   async function fetchArcGIS(layer,params){
     const base=USE_PROXY?`/api/apac-rain?service=${encodeURIComponent(`${MAP_BASE}/${layer}`)}&`:`${MAP_BASE}/${layer}/query?`;
     const r=await fetch(base+params.toString(),{mode:'cors',cache:'no-store'});
@@ -315,7 +360,7 @@
         if(tsMs){ ultraAge.textContent='• há '+fromNow(tsMs); lastTelemTs=tsMs; }
         if(aboutWater){ aboutWater.textContent='Distância da água: '+distance.toFixed(1)+' cm'+(tsMs?' ('+fromNow(tsMs)+')':''); }
 
-        // Regras pedidas: <10 normal, >10 & <20 amarelo, >=20 laranja
+        // <10 normal, >10 & <20 amarelo, >=20 laranja
         let level='none'; if(distance>20) level='orange'; else if(distance>10) level='yellow';
         state.river_level=level; renderUI();
       } else {
@@ -329,14 +374,11 @@
     }
   }
 
-  // contador “próxima em …s” baseado no último timestamp da telemetria
+  // contador “próxima em …s” baseado no último timestamp (periodicidade real 15s)
   setInterval(()=>{
-    if(!lastTelemTs){
-      ultraTimer.textContent='(aguardando leitura...)';
-      return;
-    }
-    const elapsed = Math.max(0, ((Date.now()-lastTelemTs)/1000)|0);
-    const left = Math.max(0, EXPECT_TELEM_PERIOD_SEC - (elapsed % EXPECT_TELEM_PERIOD_SEC));
+    if(!lastTelemTs){ ultraTimer.textContent='(aguardando leitura...)'; return; }
+    const elapsed=((Date.now()-lastTelemTs)/1000)|0;
+    const left=Math.max(0, EXPECT_TELEM_PERIOD_SEC - (elapsed % EXPECT_TELEM_PERIOD_SEC));
     ultraTimer.textContent = left===0 ? '(atualizando...)' : `(próxima em ${left}s)`;
   },1000);
 
