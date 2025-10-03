@@ -19,7 +19,7 @@
     .stage{ min-height:100vh; display:grid; place-items:center; padding:16px; }
     .app{ width:390px; height:780px; position:relative; overflow:hidden; border-radius:28px;
       box-shadow:0 20px 60px rgba(0,0,0,.35), 0 2px 10px rgba(0,0,0,.25); background:#000; }
-    .app.push-center      { --center-top:42%; }
+    .app.push-center     { --center-top:42%; }
     .app.push-center-hard { --center-top:50%; }
     @media (max-width:480px){ .app{ width:100vw; height:100vh; border-radius:0; box-shadow:none; } }
 
@@ -171,6 +171,14 @@
           <div class="label">Nível do rio</div>
           <div class="status ok" id="riverStatus">Normal</div>
           <div class="msg" id="riverMsg">Tudo tranquilo por enquanto.</div>
+        </div>
+      </div>
+      
+      <!-- Bloco de Telemetria movido para o meio, para melhor visibilidade -->
+      <div style="position:absolute; left:0; right:0; top: 60%; text-align:center; text-shadow:0 1px 3px rgba(0,0,0,.5);">
+          <div id="ultra-box" style="font-size: 14px; font-weight:600;">
+            Distância da água: <span id="ultra-val" style="font-size: 18px;">—</span> 
+            <span id="ultra-age" class="muted" style="font-size:11px;"></span>
         </div>
       </div>
 
@@ -337,23 +345,38 @@
 })();
 </script>
 
-<!-- Telemetria -->
-<div id="ultra-box" style="margin:8px 16px; font-weight:600;">
-  Distância da água: <span id="ultra-val">—</span> <span id="ultra-age" class="muted"></span>
-</div>
+<!-- Script da Telemetria (CORRIGIDO) -->
 <script>
 (() => {
   const ultraVal=document.getElementById('ultra-val'), ultraAge=document.getElementById('ultra-age');
   function fromNow(tsVal){const t=(typeof tsVal==='number')?tsVal:new Date(tsVal).getTime(); const s=Math.max(0,(Date.now()-t)/1000|0); if(s<60)return`${s}s`; const m=(s/60|0); if(m<60)return`${m} min`; const h=(m/60|0); return`${h} h`;}
+  
   async function loadUltrassom(){
     try{
       const r=await fetch('/api/telemetria',{cache:'no-store'}); const data=await r.json();
       const dev=data?.['heltec-01'] || (Object.values(data||{})[0]||null);
-      if(dev?.data?.distance_cm!=null){ ultraVal.textContent=dev.data.distance_cm.toFixed(1)+' cm'; const ts=dev?.received_at || dev?.data?.ts*1000; if(ts) ultraAge.textContent='• há '+fromNow(ts); }
-      else { ultraVal.textContent='—'; ultraAge.textContent=''; }
-    }catch(e){ ultraVal.textContent='Erro'; ultraAge.textContent=''; }
+
+      // ======================= AQUI ESTÁ A CORREÇÃO =======================
+      // O valor da distância está em dev.data.data.distance_cm
+      if(dev?.data?.data?.distance_cm != null){ 
+        ultraVal.textContent = dev.data.data.distance_cm.toFixed(1) + ' cm'; 
+        const ts = dev?.received_at; 
+        if(ts) ultraAge.textContent = '• há ' + fromNow(ts); 
+      }
+      // ====================================================================
+      else { 
+        ultraVal.textContent='—'; 
+        ultraAge.textContent=''; 
+      }
+    } catch(e) { 
+      console.warn('[Telemetria]', e);
+      ultraVal.textContent='Erro'; 
+      ultraAge.textContent=''; 
+    }
   }
-  loadUltrassom(); setInterval(loadUltrassom, 3000);
+  
+  loadUltrassom(); 
+  setInterval(loadUltrassom, 5000); // Aumentei um pouco o intervalo para 5s
 })();
 </script>
 </body>
