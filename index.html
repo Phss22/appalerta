@@ -76,14 +76,14 @@
     .icon{ font-size:48px; filter:drop-shadow(0 2px 6px rgba(0,0,0,.5)); transition:transform .45s ease; }
     .label{ margin-top:6px; font-size:14px; color:#e9f1fb; text-shadow:var(--shadow); letter-spacing:.2px; }
     .status{ margin-top:2px; font-size:24px; font-weight:900; text-shadow:var(--shadow); transition: color .35s ease, transform .35s ease, opacity .35s ease; }
-    .status.ok{ color:var(--ok); } .status.yellow{ color:var(--yellow); } .status.orange{ color:var(--orange); }
+    .status.ok{ color:var(--ok); } .status.yellow{ color:#f9a825; } .status.orange{ color:#ef6c00; }
     .status.pop{ animation:pop .45s ease; }
     @keyframes pop{ 0%{ transform:translateY(6px) scale(.98); opacity:.6 } 100%{ transform:none; opacity:1 } }
     .msg{ margin-top:6px; font-size:14px; color:#f0f6ff; opacity:.95; text-shadow:var(--shadow); }
 
     .bottom{ position:absolute; inset:auto 12px 10px 12px; display:flex; align-items:center; gap:10px; z-index:4; flex-wrap:wrap; }
     .bottom .mid{ flex:1 1 auto; min-width:160px; }
-    .btn{ border:0; padding:10px 14px; border-radius:12px; background:#1565c0; color:#fff; font-weight:700; cursor:pointer; box-shadow:0 6px 18px rgba(0,0,0,.25);}
+    .btn{ border:0; padding:10px 14px; border-radius:12px; background:#1565c0; color:#fff; font-weight:700; cursor:pointer; box-shadow:0 6px 18px rgba(0,0,0,.25); }
     .btn-share-bottom{ background:#25D366; }
     .ts{ font-size:11px; color:#e7eef6; white-space:nowrap; }
     #recencia{ font-size:11px; color:#e7eef6; opacity:.9; margin-left:6px; white-space:nowrap; }
@@ -174,10 +174,10 @@
       </div>
       
       <div id="ultra-box" style="position: absolute; bottom: 60px; left: 12px; right: 12px; text-align: center; text-shadow: 0 1px 3px rgba(0,0,0,.5);">
-          <div style="font-size: 14px; font-weight:600;">
-            Distância da água: <span id="ultra-val" style="font-size: 18px;">—</span> 
-            <span id="ultra-age" class="muted" style="font-size:11px;"></span>
-            <span id="ultra-timer" class="muted" style="font-size:11px; margin-left: 4px;"></span>
+        <div style="font-size: 14px; font-weight:600;">
+          Distância da água: <span id="ultra-val" style="font-size: 18px;">—</span> 
+          <span id="ultra-age" class="muted" style="font-size:11px;"></span>
+          <span id="ultra-timer" class="muted" style="font-size:11px; margin-left: 4px;"></span>
         </div>
       </div>
 
@@ -188,6 +188,7 @@
     </div>
   </div>
 
+  <!-- Modal Sobre & Fontes -->
   <div id="aboutModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="aboutTitle">
     <div class="modal-card">
       <h3 id="aboutTitle">Sobre & fontes</h3>
@@ -197,6 +198,8 @@
         <p><strong>Telemetria</strong>: sensor <em>Heltec WiFi LoRa 32</em> com ultrassom (distância da água), enviado para <code>/api/telemetria</code>.</p>
         <p><strong>Observações</strong>: dados podem sofrer atrasos. Sempre siga orientações da Defesa Civil local.</p>
         <p id="aboutSensorLoc" class="muted">Local do sensor: —</p>
+        <!-- Distância da água nos créditos (pedido) -->
+        <p id="aboutWater" class="muted">Distância da água: —</p>
       </div>
       <div class="modal-actions">
         <button id="closeAbout" class="btn-pri">OK</button>
@@ -222,6 +225,7 @@
   const picker=document.getElementById('muniPicker'), muniInput=document.getElementById('muniInput'), muniError=document.getElementById('muniError');
   const saveMuni=document.getElementById('saveMuni'), cancelMuni=document.getElementById('cancelMuni');
   const ultraVal = document.getElementById('ultra-val'), ultraAge = document.getElementById('ultra-age'), ultraTimer = document.getElementById('ultra-timer');
+  const aboutWater = document.getElementById('aboutWater');
 
   // --- ESTADO DA APLICAÇÃO ---
   let MUNICIPIO=localStorage.getItem('apac_muni')||'NAZARÉ DA MATA';
@@ -248,7 +252,6 @@
                 orange:{icon:'⚠️',label:'ALERTA LARANJA',cls:'orange',msg:'Risco de inundação. Evite áreas de risco.'} };
     const m=map[state.river_level]||map.none;
     
-    // Animação ao mudar de estado
     if(prevRiverLevel !== state.river_level){
         riverIcon.style.transform='scale(1.08)'; setTimeout(()=>riverIcon.style.transform='',350);
         riverStatus.classList.remove('pop'); void riverStatus.offsetWidth; riverStatus.classList.add('pop');
@@ -260,7 +263,6 @@
     riverStatus.textContent=m.label;
     riverMsg.textContent=m.msg;
 
-    // Outros elementos da UI
     if(!Number.isNaN(state.rain_mm_24h)) rainVal.textContent=Number(state.rain_mm_24h).toFixed(1);
     landText.textContent={none:'⛰️ Nenhum', yellow:'⚠️ AMARELO — monitore encostas.', orange:'⛔ LARANJA — evite áreas de risco.'}[state.landslide_risk]||'⛰️ Nenhum';
     cardRain.classList.toggle('compact', Number(state.rain_mm_24h)<1);
@@ -288,9 +290,10 @@
       const {muni,mm24,ts:tsRow}=await getRainForMunicipio(MUNICIPIO);
       MUNICIPIO=muni; localStorage.setItem('apac_muni',muni); muniNameEl.textContent=muni;
       
+      // limiares de exemplo para risco de deslizamento (por chuva)
       let land='none';
-      if(mm24 > 20) land='orange'; // Nível de teste para alerta laranja
-      else if(mm24 > 10) land='yellow'; // Nível de teste para alerta amarelo
+      if(mm24 > 20) land='orange';
+      else if(mm24 > 10) land='yellow';
       
       state.rain_mm_24h = mm24; state.landslide_risk = land; state.ts = tsRow;
       renderUI();
@@ -304,31 +307,44 @@
   let countdown = UPDATE_SEC_TELEMETRY;
   async function loadUltrassom(){
     try{
-      const r=await fetch('/api/telemetria',{cache:'no-store'}); const data=await r.json();
+      const r=await fetch('/api/telemetria',{cache:'no-store'}); 
+      const data=await r.json();
       const dev=data?.['heltec-01'] || (Object.values(data||{})[0]||null);
 
-      if(dev?.data?.data?.distance_cm != null){ 
-        const distance = dev.data.data.distance_cm;
+      // aceita dev.data.distance_cm ou dev.data.data.distance_cm
+      const raw = (dev && dev.data) ? (dev.data.distance_cm ?? dev.data.data?.distance_cm) : null;
+
+      if(raw != null){ 
+        const distance = Number(raw);
         ultraVal.textContent = distance.toFixed(1) + ' cm'; 
-        const ts = dev?.received_at; 
-        if(ts) ultraAge.textContent = '• há ' + fromNow(ts);
-        
-        // Lógica de alerta baseada na distância (quanto menor a distância, maior o alerta)
-        let newRiverLevel = 'none'; // 'none' é a chave para Normal
-        if (distance <= 15) {
-          newRiverLevel = 'orange';
-        } else if (distance <= 28) {
-          newRiverLevel = 'yellow';
+
+        const tsMs = dev?.received_at ?? (dev?.data?.ts ? (dev.data.ts*1000) : null);
+        if(tsMs) ultraAge.textContent = '• há ' + fromNow(tsMs);
+
+        // Atualiza créditos com a distância
+        if (aboutWater) {
+          aboutWater.textContent = 'Distância da água: ' + distance.toFixed(1) + ' cm' + (tsMs ? ' (' + fromNow(tsMs) + ')' : '');
         }
+        
+        // *** ALERTA PELO USUÁRIO: <10 = normal, >10 e <20 = amarelo, >=20 = laranja
+        let newRiverLevel = 'none';
+        if (distance > 20) {
+          newRiverLevel = 'orange';
+        } else if (distance > 10) {
+          newRiverLevel = 'yellow';
+        } // senão permanece 'none' (Normal)
         state.river_level = newRiverLevel;
         renderUI();
         
-        countdown = UPDATE_SEC_TELEMETRY + 1; // Reseta o contador
+        countdown = UPDATE_SEC_TELEMETRY + 1; // Reseta o contador do texto "(próxima em ...s)"
       } else { 
-        ultraVal.textContent='—'; ultraAge.textContent=''; 
+        ultraVal.textContent='—'; ultraAge.textContent='';
+        if (aboutWater) aboutWater.textContent = 'Distância da água: —';
       }
     } catch(e) { 
-      console.warn('[Telemetria]', e); ultraVal.textContent='Erro'; ultraAge.textContent=''; 
+      console.warn('[Telemetria]', e); 
+      ultraVal.textContent='Erro'; ultraAge.textContent='';
+      if (aboutWater) aboutWater.textContent = 'Distância da água: —';
     }
   }
 
@@ -382,4 +398,3 @@
 
 </body>
 </html>
-
