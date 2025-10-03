@@ -127,7 +127,6 @@
               <button id="btnManualMuni" class="mini-btn alt" aria-label="Definir município">Definir município</button>
             </div>
 
-            <!-- Picker inline -->
             <div id="muniPicker" class="picker hidden" aria-live="polite">
               <div class="row">
                 <input id="muniInput" type="text" list="muniList" placeholder="Ex.: Carpina" />
@@ -174,11 +173,11 @@
         </div>
       </div>
       
-      <!-- Bloco de Telemetria movido para o meio, para melhor visibilidade -->
-      <div style="position:absolute; left:0; right:0; top: 60%; text-align:center; text-shadow:0 1px 3px rgba(0,0,0,.5);">
-          <div id="ultra-box" style="font-size: 14px; font-weight:600;">
+      <div id="ultra-box" style="position: absolute; bottom: 60px; left: 12px; right: 12px; text-align: center; text-shadow: 0 1px 3px rgba(0,0,0,.5);">
+          <div style="font-size: 14px; font-weight:600;">
             Distância da água: <span id="ultra-val" style="font-size: 18px;">—</span> 
             <span id="ultra-age" class="muted" style="font-size:11px;"></span>
+            <span id="ultra-timer" class="muted" style="font-size:11px; margin-left: 4px;"></span>
         </div>
       </div>
 
@@ -189,7 +188,6 @@
     </div>
   </div>
 
-  <!-- Modal Sobre & Fontes (mantido igual ao seu) -->
   <div id="aboutModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="aboutTitle">
     <div class="modal-card">
       <h3 id="aboutTitle">Sobre & fontes</h3>
@@ -208,66 +206,68 @@
 
 <script defer>
 (function(){
+  // --- CONFIGURAÇÕES E CONSTANTES ---
   const MAP_BASE='https://geoportal.apac.pe.gov.br/server/rest/services/met_volume_acumulado_chuva_24hs/MapServer';
   const LAYER_MUNICIPIOS=1, FIELD_NAME='nm_mun', FIELD_MM24='horas_24';
-  const USE_PROXY=true, UPDATE_MIN=5;
-
+  const USE_PROXY=true, UPDATE_MIN_RAIN=5, UPDATE_SEC_TELEMETRY=5;
   const MUNI_LIST=['Aliança','Buenos Aires','Camutanga','Carpina','Condado','Ferreiros','Goiana','Itaquitinga','Itambé','Lagoa do Carro','Lagoa de Itaenga','Macaparana','Nazaré da Mata','Paudalho','São Vicente Ferrer','Timbaúba','Tracunhaém','Vicência','Recife'];
-  const norm=s=> (s||'').toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim();
-  const escQ=s=> (s||'').replace(/'/g,"''");
-  const MUNI_CANON=Object.fromEntries(MUNI_LIST.map(n=>[norm(n),n]));
 
-  const appRoot=document.getElementById('appRoot');
-  const hudEl=document.querySelector('.hud');
-  const bgA=document.getElementById('bgA'), bgB=document.getElementById('bgB'); let activeBg='A';
-  const BG_BASE={none:'joana_normal',yellow:'joana_alerta_amarelo',orange:'joana_alerta_laranja'};
-  const EXT=['.jpg','.jpeg','.png',''];
-  function resolveImage(base,cb){let i=0;const t=()=>{if(i>=EXT.length)return cb(null);const src=`${base}${EXT[i++]}?v=${Date.now()}`;const im=new Image();im.onload=()=>cb(src);im.onerror=t;im.src=src;};t();}
-  function setBackground(level){const base=BG_BASE[level]||BG_BASE.none; resolveImage(base,(src)=>{if(!src)return; const next=activeBg==='A'?bgB:bgA, prev=activeBg==='A'?bgA:bgB; next.style.backgroundImage=`url("${src}")`; next.classList.add('active'); prev.classList.remove('active'); activeBg=activeBg==='A'?'B':'A';});}
-
+  // --- REFERÊNCIAS DO DOM ---
+  const appRoot=document.getElementById('appRoot'), hudEl=document.querySelector('.hud'), bgA=document.getElementById('bgA'), bgB=document.getElementById('bgB');
   const riverIcon=document.getElementById('riverIcon'), riverStatus=document.getElementById('riverStatus'), riverMsg=document.getElementById('riverMsg');
   const rainVal=document.getElementById('rainVal'), muniNameEl=document.getElementById('muniName'), landText=document.getElementById('landText');
   const ts=document.getElementById('ts'), recencia=document.getElementById('recencia'), btnLocate=document.getElementById('btnLocate'), btnManualMuni=document.getElementById('btnManualMuni');
   const btnShare=document.getElementById('btnShare'), cardRain=document.getElementById('cardRain'), cardLand=document.getElementById('cardLand');
-  const spark=document.getElementById('spark'), sparkLabel=document.getElementById('sparkLabel'), sparkDetails=document.getElementById('sparkDetails'), sparkWrap=document.getElementById('sparkWrap');
-
+  const spark=document.getElementById('spark'), sparkLabel=document.getElementById('sparkLabel'), sparkDetails=document.getElementById('sparkDetails');
   const picker=document.getElementById('muniPicker'), muniInput=document.getElementById('muniInput'), muniError=document.getElementById('muniError');
   const saveMuni=document.getElementById('saveMuni'), cancelMuni=document.getElementById('cancelMuni');
+  const ultraVal = document.getElementById('ultra-val'), ultraAge = document.getElementById('ultra-age'), ultraTimer = document.getElementById('ultra-timer');
 
+  // --- ESTADO DA APLICAÇÃO ---
   let MUNICIPIO=localStorage.getItem('apac_muni')||'NAZARÉ DA MATA';
-  let state={river_level:'none',rain_mm_24h:NaN,landslide_risk:'none',ts:new Date()};
+  let state={river_level:'none', rain_mm_24h:NaN, landslide_risk:'none', ts:new Date()};
+  let prevRiverLevel = state.river_level;
+  let activeBg='A';
 
+  // --- FUNÇÕES UTILITÁRIAS ---
+  const norm=s=> (s||'').toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim();
+  const escQ=s=> (s||'').replace(/'/g,"''");
+  const MUNI_CANON=Object.fromEntries(MUNI_LIST.map(n=>[norm(n),n]));
   function fromNow(tsVal){const t=(typeof tsVal==='number')?tsVal:new Date(tsVal).getTime();const s=Math.max(0,(Date.now()-t)/1000|0);if(s<60)return`${s}s`;const m=(s/60|0);if(m<60)return`${m} min`;const h=(m/60|0);return`${h} h`;}
   function setRecencia(tsVal){ recencia.textContent='• há '+fromNow(tsVal); }
 
-  function histKey(m){return 'aqs_hist_'+norm(m)}
-  function addHistoryPoint(m,v){const k=histKey(m);let a=[];try{a=JSON.parse(localStorage.getItem(k)||'[]')}catch{} a.push({t:Date.now(),v:Number(v)||0}); if(a.length>32)a=a.slice(a.length-32); localStorage.setItem(k,JSON.stringify(a));}
-  function getHistory(m){try{return JSON.parse(localStorage.getItem(histKey(m))||'[]')}catch{return []}}
-  function drawSpark(m){let a=getHistory(m); if(a.length<2){sparkDetails.open=false; sparkDetails.style.display='none'; ensureNoOverlap(); return;} sparkDetails.style.display=''; const N=Math.min(a.length,32); a=a.slice(a.length-N); const H=28,PAD=2,max=Math.max(...a.map(p=>p.v),1); const pts=a.map((p,i)=>`${i*(180/(N-1))},${H-(p.v/max)*(H-2*PAD)-PAD}`).join(' '); spark.setAttribute('viewBox','0 0 180 28'); spark.innerHTML=`<polyline points="${pts}" fill="none" stroke="currentColor" stroke-width="2"></polyline>`; const last=a[a.length-1]; sparkLabel.textContent=`Últimas ${N} leituras • pico ${max.toFixed(1)} mm • atual ${last.v.toFixed(1)} mm`; }
+  // --- LÓGICA DE RENDERIZAÇÃO (UI) ---
+  function renderUI() {
+    // Fundo e ênfase nos cards
+    setBackground(state.river_level);
+    setCardEmphasis();
 
-  function ensureNoOverlap(){const pickerOpen=!picker.classList.contains('hidden'); const sparkOpen=sparkDetails.open&&sparkDetails.style.display!=='none'; if(!pickerOpen&&!sparkOpen){appRoot.classList.remove('push-center','push-center-hard');return;} appRoot.classList.add('push-center'); const centerTop=document.querySelector('.center').getBoundingClientRect().top; const hudBottom=hudEl.getBoundingClientRect().bottom; const overlaps=hudBottom+8>centerTop; appRoot.classList.toggle('push-center-hard',overlaps);}
-  sparkDetails.addEventListener('toggle',()=>{ if(sparkDetails.open){drawSpark(MUNICIPIO);} ensureNoOverlap(); });
-  window.addEventListener('resize', ensureNoOverlap);
+    // Textos e ícones principais
+    const map={ none:  {icon:'💧',label:'Normal',cls:'ok',msg:'Tudo tranquilo por enquanto.'},
+                yellow:{icon:'⚠️',label:'ALERTA AMARELO',cls:'yellow',msg:'Atenção! Nível do rio subindo.'},
+                orange:{icon:'⚠️',label:'ALERTA LARANJA',cls:'orange',msg:'Risco de inundação. Evite áreas de risco.'} };
+    const m=map[state.river_level]||map.none;
+    
+    // Animação ao mudar de estado
+    if(prevRiverLevel !== state.river_level){
+        riverIcon.style.transform='scale(1.08)'; setTimeout(()=>riverIcon.style.transform='',350);
+        riverStatus.classList.remove('pop'); void riverStatus.offsetWidth; riverStatus.classList.add('pop');
+    }
+    prevRiverLevel = state.river_level;
 
-  async function fetchArcGIS(layer, params){
-    const base = USE_PROXY ? `/api/apac-rain?service=${encodeURIComponent(`${MAP_BASE}/${layer}`)}&` : `${MAP_BASE}/${layer}/query?`;
-    const url = base + params.toString();
-    const r = await fetch(url, { mode:'cors', cache:'no-store' });
-    if(!r.ok) throw new Error('APAC HTTP '+r.status);
-    return r.json();
-  }
-  async function getRainForMunicipio(muniRaw){
-    const muni=norm(muniRaw);
-    let where=`UPPER(${FIELD_NAME})='${escQ(muni)}'`;
-    let params=new URLSearchParams({where,outFields:`${FIELD_MM24},${FIELD_NAME},ultima_leitura_data_hora`,returnGeometry:'false',f:'json',resultRecordCount:'1'});
-    let data=await fetchArcGIS(LAYER_MUNICIPIOS, params);
-    if(data.features?.length){const a=data.features[0].attributes||{}; return {muni:a[FIELD_NAME]||muniRaw, mm24:Number(a[FIELD_MM24]??0), ts:a.ultima_leitura_data_hora||new Date()};}
-    const first=escQ(muni.split(/\s+/)[0]);
-    where=`UPPER(${FIELD_NAME}) LIKE '${first}%'`;
-    params=new URLSearchParams({where,outFields:`${FIELD_MM24},${FIELD_NAME},ultima_leitura_data_hora`,returnGeometry:'false',f:'json',resultRecordCount:'1'});
-    data=await fetchArcGIS(LAYER_MUNICIPIOS, params);
-    if(data.features?.length){const a=data.features[0].attributes||{}; return {muni:a[FIELD_NAME]||muniRaw, mm24:Number(a[FIELD_MM24]??0), ts:a.ultima_leitura_data_hora||new Date()};}
-    throw new Error('Município não encontrado');
+    riverIcon.textContent=m.icon;
+    riverStatus.className='status '+m.cls;
+    riverStatus.textContent=m.label;
+    riverMsg.textContent=m.msg;
+
+    // Outros elementos da UI
+    if(!Number.isNaN(state.rain_mm_24h)) rainVal.textContent=Number(state.rain_mm_24h).toFixed(1);
+    landText.textContent={none:'⛰️ Nenhum', yellow:'⚠️ AMARELO — monitore encostas.', orange:'⛔ LARANJA — evite áreas de risco.'}[state.landslide_risk]||'⛰️ Nenhum';
+    cardRain.classList.toggle('compact', Number(state.rain_mm_24h)<1);
+    cardLand.classList.toggle('compact', state.landslide_risk==='none');
+    ts.firstChild.nodeValue='Atualizado em: '+new Date(state.ts).toLocaleString('pt-BR')+' ';
+    setRecencia(state.ts);
+    ensureNoOverlap();
   }
 
   function setCardEmphasis(){
@@ -276,108 +276,110 @@
     else if(state.landslide_risk==='yellow'){ cardLand.classList.add('warn'); cardRain.classList.add('ok'); }
     else { cardLand.classList.add('ok'); cardRain.classList.add('ok'); }
   }
-  function setState(s){
-    const prev=state.river_level; state=s; setBackground(state.river_level); setCardEmphasis();
-    const map={ none:{icon:'💧',label:'Normal',cls:'ok',msg:'Tudo tranquilo por enquanto.'},
-                yellow:{icon:'⚠️',label:'ALERTA AMARELO',cls:'yellow',msg:'Atenção! Nível elevado. Fique em alerta.'},
-                orange:{icon:'⚠️',label:'ALERTA LARANJA',cls:'orange',msg:'Risco moderado/alto. Evite áreas sujeitas a alagamento.'} };
-    const m=map[state.river_level]||map.none;
-    if(prev!==state.river_level){ riverIcon.style.transform='scale(1.08)'; setTimeout(()=>riverIcon.style.transform='',350); riverStatus.classList.remove('pop'); void riverStatus.offsetWidth; riverStatus.classList.add('pop'); }
-    riverIcon.textContent=m.icon; riverStatus.className='status '+m.cls+' pop'; riverStatus.textContent=m.label; riverMsg.textContent=m.msg;
-    if(!Number.isNaN(state.rain_mm_24h)) rainVal.textContent=Number(state.rain_mm_24h).toFixed(1);
-    landText.textContent={none:'⛰️ Nenhum', yellow:'⚠️ AMARELO — monitore encostas.', orange:'⛔ LARANJA — evite áreas de risco.'}[state.landslide_risk]||'⛰️ Nenhum';
-    cardRain.classList.toggle('compact', Number(state.rain_mm_24h)<1); cardLand.classList.toggle('compact', state.landslide_risk==='none');
-    ts.firstChild.nodeValue='Atualizado em: '+new Date(state.ts).toLocaleString('pt-BR')+' '; setRecencia(state.ts); ensureNoOverlap();
-  }
-  function updateHistoryAndSpark(){ addHistoryPoint(MUNICIPIO, state.rain_mm_24h); drawSpark(MUNICIPIO); ensureNoOverlap(); }
+  
+  const BG_BASE={none:'joana_normal',yellow:'joana_alerta_amarelo',orange:'joana_alerta_laranja'};
+  const EXT=['.jpg','.jpeg','.png',''];
+  function resolveImage(base,cb){let i=0;const t=()=>{if(i>=EXT.length)return cb(null);const src=`${base}${EXT[i++]}?v=${Date.now()}`;const im=new Image();im.onload=()=>cb(src);im.onerror=t;im.src=src;};t();}
+  function setBackground(level){const base=BG_BASE[level]||BG_BASE.none; resolveImage(base,(src)=>{if(!src)return; const next=activeBg==='A'?bgB:bgA, prev=activeBg==='A'?bgA:bgB; next.style.backgroundImage=`url("${src}")`; next.classList.add('active'); prev.classList.remove('active'); activeBg=activeBg==='A'?'B':'A';});}
 
+  // --- LÓGICA DE DADOS (CHUVA) ---
   async function atualizarChuva(){
     try{
       const {muni,mm24,ts:tsRow}=await getRainForMunicipio(MUNICIPIO);
       MUNICIPIO=muni; localStorage.setItem('apac_muni',muni); muniNameEl.textContent=muni;
-      let land='none'; if(mm24>120) land='orange'; else if(mm24>80) land='yellow';
-      setState({river_level:state.river_level, rain_mm_24h:mm24, landslide_risk:land, ts:tsRow}); updateHistoryAndSpark();
+      
+      let land='none';
+      if(mm24 > 20) land='orange'; // Nível de teste para alerta laranja
+      else if(mm24 > 10) land='yellow'; // Nível de teste para alerta amarelo
+      
+      state.rain_mm_24h = mm24; state.landslide_risk = land; state.ts = tsRow;
+      renderUI();
+      updateHistoryAndSpark();
     }catch(e){ console.warn('[APAC]', e); }
   }
+  async function getRainForMunicipio(muniRaw){/*...*/ const muni=norm(muniRaw);let where=`UPPER(${FIELD_NAME})='${escQ(muni)}'`;let params=new URLSearchParams({where,outFields:`${FIELD_MM24},${FIELD_NAME},ultima_leitura_data_hora`,returnGeometry:'false',f:'json',resultRecordCount:'1'});let data=await fetchArcGIS(LAYER_MUNICIPIOS,params);if(data.features?.length){const a=data.features[0].attributes||{};return{muni:a[FIELD_NAME]||muniRaw,mm24:Number(a[FIELD_MM24]??0),ts:a.ultima_leitura_data_hora||new Date()};}const first=escQ(muni.split(/\s+/)[0]);where=`UPPER(${FIELD_NAME}) LIKE '${first}%'`;params=new URLSearchParams({where,outFields:`${FIELD_MM24},${FIELD_NAME},ultima_leitura_data_hora`,returnGeometry:'false',f:'json',resultRecordCount:'1'});data=await fetchArcGIS(LAYER_MUNICIPIOS,params);if(data.features?.length){const a=data.features[0].attributes||{};return{muni:a[FIELD_NAME]||muniRaw,mm24:Number(a[FIELD_MM24]??0),ts:a.ultima_leitura_data_hora||new Date()};}throw new Error('Município não encontrado');}
+  async function fetchArcGIS(layer,params){const base=USE_PROXY?`/api/apac-rain?service=${encodeURIComponent(`${MAP_BASE}/${layer}`)}&`:`${MAP_BASE}/${layer}/query?`;const url=base+params.toString();const r=await fetch(url,{mode:'cors',cache:'no-store'});if(!r.ok)throw new Error('APAC HTTP '+r.status);return r.json();}
 
-  const CAN_GEO=(location.protocol==='https:'||location.hostname==='localhost');
-  async function geolocateAndSetMunicipio(){
-    if(!CAN_GEO||!('geolocation' in navigator)) return;
-    try{
-      btnLocate.textContent='Localizando…'; btnLocate.disabled=true;
-      const pos=await new Promise((res,rej)=>navigator.geolocation.getCurrentPosition(res,rej,{enableHighAccuracy:true,maximumAge:0,timeout:15000}));
-      const {latitude,longitude}=pos.coords;
-      const url=`https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/reverseGeocode?location=${longitude},${latitude}&f=json`;
-      const j=await fetch(url,{cache:'no-store'}).then(r=>r.json());
-      const guess=j?.address?.City||j?.address?.Subregion||j?.address?.Region||'';
-      if(!guess) throw new Error('Sem município');
-      MUNICIPIO=guess; localStorage.setItem('apac_muni',guess); muniNameEl.textContent=guess; await atualizarChuva(); btnLocate.style.display='none';
-    }catch(e){ btnLocate.textContent='Tentar novamente'; btnLocate.disabled=false; }
-  }
-
-  bgA.classList.add('active');
-  muniNameEl.textContent=MUNICIPIO;
-  setState(state); atualizarChuva();
-  setInterval(atualizarChuva, UPDATE_MIN*60*1000);
-  setInterval(()=>setRecencia(state.ts), 30*1000);
-  if(CAN_GEO) btnLocate.addEventListener('click', geolocateAndSetMunicipio);
-
-  function openPicker(){ muniError.style.display='none'; muniError.textContent=''; muniInput.value=MUNI_CANON[norm(MUNICIPIO)]||MUNICIPIO; picker.classList.remove('hidden'); ensureNoOverlap(); setTimeout(()=>muniInput.focus(),30); }
-  function closePicker(){ picker.classList.add('hidden'); ensureNoOverlap(); }
-  btnManualMuni.addEventListener('click', ()=> picker.classList.contains('hidden') ? openPicker() : closePicker());
-  cancelMuni.addEventListener('click', closePicker);
-  saveMuni.addEventListener('click', async ()=>{
-    const typed=(muniInput.value||'').trim(); const canon=MUNI_CANON[norm(typed)];
-    if(!canon){ muniError.textContent='Município não encontrado na lista.'; muniError.style.display='block'; return; }
-    try{ await getRainForMunicipio(canon); MUNICIPIO=canon; localStorage.setItem('apac_muni',canon); muniNameEl.textContent=canon; await atualizarChuva(); closePicker(); }
-    catch(e){ muniError.textContent='Sem dados disponíveis para "'+canon+'".'; muniError.style.display='block'; }
-  });
-
-  function riskShareText(code){ if(code==='orange')return 'ALARANJADO — evite áreas de risco'; if(code==='yellow')return 'AMARELO — atenção'; return 'Nenhum'; }
-  btnShare.addEventListener('click', ()=>{
-    const cidade=muniNameEl.textContent.trim(), chuva=rainVal.textContent.trim(), nivel=riverStatus.textContent.trim(), risco=riskShareText(state.landslide_risk);
-    const dist=document.getElementById('ultra-val')?.textContent?.trim(); const tsTxt=ts.textContent.replace('Atualizado em:','').trim();
-    let base=`AquaSense • ${cidade}\nChuva (24h): ${chuva} mm\nRisco de deslizamento: ${risco}\nNível do rio: ${nivel}`;
-    if(dist && dist!=='—' && !/Erro/i.test(dist)) base+=`\nDistância da água: ${dist}`;
-    base+=`\n${tsTxt}\nAcesse: aquasenseipa.vercel.app`;
-    location.href='https://wa.me/?text='+encodeURIComponent(base);
-  });
-})();
-</script>
-
-<!-- Script da Telemetria (CORRIGIDO) -->
-<script>
-(() => {
-  const ultraVal=document.getElementById('ultra-val'), ultraAge=document.getElementById('ultra-age');
-  function fromNow(tsVal){const t=(typeof tsVal==='number')?tsVal:new Date(tsVal).getTime(); const s=Math.max(0,(Date.now()-t)/1000|0); if(s<60)return`${s}s`; const m=(s/60|0); if(m<60)return`${m} min`; const h=(m/60|0); return`${h} h`;}
-  
+  // --- LÓGICA DE DADOS (TELEMETRIA) ---
+  let countdown = UPDATE_SEC_TELEMETRY;
   async function loadUltrassom(){
     try{
       const r=await fetch('/api/telemetria',{cache:'no-store'}); const data=await r.json();
       const dev=data?.['heltec-01'] || (Object.values(data||{})[0]||null);
 
-      // ======================= AQUI ESTÁ A CORREÇÃO =======================
-      // O valor da distância está em dev.data.data.distance_cm
       if(dev?.data?.data?.distance_cm != null){ 
-        ultraVal.textContent = dev.data.data.distance_cm.toFixed(1) + ' cm'; 
+        const distance = dev.data.data.distance_cm;
+        ultraVal.textContent = distance.toFixed(1) + ' cm'; 
         const ts = dev?.received_at; 
-        if(ts) ultraAge.textContent = '• há ' + fromNow(ts); 
-      }
-      // ====================================================================
-      else { 
-        ultraVal.textContent='—'; 
-        ultraAge.textContent=''; 
+        if(ts) ultraAge.textContent = '• há ' + fromNow(ts);
+        
+        // Lógica de alerta baseada na distância (quanto menor a distância, maior o alerta)
+        let newRiverLevel = 'none'; // 'none' é a chave para Normal
+        if (distance <= 15) {
+          newRiverLevel = 'orange';
+        } else if (distance <= 28) {
+          newRiverLevel = 'yellow';
+        }
+        state.river_level = newRiverLevel;
+        renderUI();
+        
+        countdown = UPDATE_SEC_TELEMETRY + 1; // Reseta o contador
+      } else { 
+        ultraVal.textContent='—'; ultraAge.textContent=''; 
       }
     } catch(e) { 
-      console.warn('[Telemetria]', e);
-      ultraVal.textContent='Erro'; 
-      ultraAge.textContent=''; 
+      console.warn('[Telemetria]', e); ultraVal.textContent='Erro'; ultraAge.textContent=''; 
     }
   }
+
+  // --- GRÁFICOS E HISTÓRICO ---
+  function updateHistoryAndSpark(){ addHistoryPoint(MUNICIPIO, state.rain_mm_24h); drawSpark(MUNICIPIO); }
+  function histKey(m){return 'aqs_hist_'+norm(m)}
+  function addHistoryPoint(m,v){const k=histKey(m);let a=[];try{a=JSON.parse(localStorage.getItem(k)||'[]')}catch{} a.push({t:Date.now(),v:Number(v)||0}); if(a.length>32)a=a.slice(a.length-32); localStorage.setItem(k,JSON.stringify(a));}
+  function getHistory(m){try{return JSON.parse(localStorage.getItem(histKey(m))||'[]')}catch{return []}}
+  function drawSpark(m){let a=getHistory(m); if(a.length<2){sparkDetails.open=false; sparkDetails.style.display='none'; ensureNoOverlap(); return;} sparkDetails.style.display=''; const N=Math.min(a.length,32); a=a.slice(a.length-N); const H=28,PAD=2,max=Math.max(...a.map(p=>p.v),1); const pts=a.map((p,i)=>`${i*(180/(N-1))},${H-(p.v/max)*(H-2*PAD)-PAD}`).join(' '); spark.setAttribute('viewBox','0 0 180 28'); spark.innerHTML=`<polyline points="${pts}" fill="none" stroke="currentColor" stroke-width="2"></polyline>`; const last=a[a.length-1]; sparkLabel.textContent=`Últimas ${N} leituras • pico ${max.toFixed(1)} mm • atual ${last.v.toFixed(1)} mm`; }
   
+  // --- PICKER DE MUNICÍPIO E GEOLOCALIZAÇÃO ---
+  const CAN_GEO=(location.protocol==='https:'||location.hostname==='localhost');
+  if(CAN_GEO) btnLocate.addEventListener('click', geolocateAndSetMunicipio);
+  async function geolocateAndSetMunicipio(){ if(!CAN_GEO||!('geolocation' in navigator))return; try{ btnLocate.textContent='Localizando…'; btnLocate.disabled=true; const pos=await new Promise((res,rej)=>navigator.geolocation.getCurrentPosition(res,rej,{enableHighAccuracy:true,maximumAge:0,timeout:15000})); const{latitude,longitude}=pos.coords; const url=`https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/reverseGeocode?location=${longitude},${latitude}&f=json`; const j=await fetch(url,{cache:'no-store'}).then(r=>r.json()); const guess=j?.address?.City||j?.address?.Subregion||j?.address?.Region||''; if(!guess)throw new Error('Sem município'); MUNICIPIO=guess; localStorage.setItem('apac_muni',guess); muniNameEl.textContent=guess; await atualizarChuva(); btnLocate.style.display='none';}catch(e){ btnLocate.textContent='Tentar novamente'; btnLocate.disabled=false;}}
+  function openPicker(){ muniError.style.display='none'; muniError.textContent=''; muniInput.value=MUNI_CANON[norm(MUNICIPIO)]||MUNICIPIO; picker.classList.remove('hidden'); ensureNoOverlap(); setTimeout(()=>muniInput.focus(),30); }
+  function closePicker(){ picker.classList.add('hidden'); ensureNoOverlap(); }
+  btnManualMuni.addEventListener('click', ()=> picker.classList.contains('hidden') ? openPicker() : closePicker());
+  cancelMuni.addEventListener('click', closePicker);
+  saveMuni.addEventListener('click', async ()=>{ const typed=(muniInput.value||'').trim(); const canon=MUNI_CANON[norm(typed)]; if(!canon){ muniError.textContent='Município não encontrado na lista.'; muniError.style.display='block'; return; } try{ await getRainForMunicipio(canon); MUNICIPIO=canon; localStorage.setItem('apac_muni',canon); muniNameEl.textContent=canon; await atualizarChuva(); closePicker(); } catch(e){ muniError.textContent='Sem dados para "'+canon+'".'; muniError.style.display='block'; } });
+  function ensureNoOverlap(){const pickerOpen=!picker.classList.contains('hidden'); const sparkOpen=sparkDetails.open&&sparkDetails.style.display!=='none'; if(!pickerOpen&&!sparkOpen){appRoot.classList.remove('push-center','push-center-hard');return;} appRoot.classList.add('push-center'); const centerTop=document.querySelector('.center').getBoundingClientRect().top; const hudBottom=hudEl.getBoundingClientRect().bottom; const overlaps=hudBottom+8>centerTop; appRoot.classList.toggle('push-center-hard',overlaps);}
+  sparkDetails.addEventListener('toggle',()=>{ if(sparkDetails.open){drawSpark(MUNICIPIO);} ensureNoOverlap(); });
+  window.addEventListener('resize', ensureNoOverlap);
+
+  // --- BOTÃO DE COMPARTILHAR ---
+  function riskShareText(code){ if(code==='orange')return 'ALARANJADO — evite áreas de risco'; if(code==='yellow')return 'AMARELO — atenção'; return 'Nenhum'; }
+  btnShare.addEventListener('click', ()=>{ const cidade=muniNameEl.textContent.trim(), chuva=rainVal.textContent.trim(), nivel=riverStatus.textContent.trim(), risco=riskShareText(state.landslide_risk); const dist=document.getElementById('ultra-val')?.textContent?.trim(); const tsTxt=ts.textContent.replace('Atualizado em:','').trim(); let base=`AquaSense • ${cidade}\nChuva (24h): ${chuva} mm\nRisco de deslizamento: ${risco}\nNível do rio: ${nivel}`; if(dist && dist!=='—' && !/Erro/i.test(dist)) base+=`\nDistância da água: ${dist}`; base+=`\n${tsTxt}\nAcesse: aquasenseipa.vercel.app`; location.href='https://wa.me/?text='+encodeURIComponent(base); });
+
+  // --- INICIALIZAÇÃO ---
+  bgA.classList.add('active');
+  muniNameEl.textContent=MUNICIPIO;
+  renderUI(); 
+  atualizarChuva();
+  setInterval(atualizarChuva, UPDATE_MIN_RAIN * 60 * 1000);
+  setInterval(()=>setRecencia(state.ts), 30*1000);
+
+  // Inicialização e timers da telemetria
   loadUltrassom(); 
-  setInterval(loadUltrassom, 5000); // Aumentei um pouco o intervalo para 5s
+  setInterval(loadUltrassom, UPDATE_SEC_TELEMETRY * 1000);
+  setInterval(() => {
+    countdown--;
+    if (countdown <= 0) {
+      ultraTimer.textContent = `(atualizando...)`;
+      countdown = 0;
+    } else {
+      ultraTimer.textContent = `(próxima em ${countdown}s)`;
+    }
+  }, 1000);
+
 })();
 </script>
+
 </body>
 </html>
+
