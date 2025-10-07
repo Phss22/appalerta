@@ -97,7 +97,7 @@
     #recencia{ font-size:11px; color:#e7eef6; opacity:.9; margin-left:6px; white-space:nowrap; }
 
     details.spark{ margin:8px 0 0; }
-    details.spark > summary{ cursor:pointer; list-style:none; color:var(--ink); font-size:12px; background:rgba(255,255,255,.96); border:1px solid var(--glass-brd); display:inline-block; padding:6px 8px; border-radius:10px; user-select:none; }
+    details.spark > summary{ cursor:pointer; list-style:none; color:#2d3a45; font-size:12px; background:rgba(255,255,255,.96); border:1px solid var(--glass-brd); display:inline-block; padding:6px 8px; border-radius:10px; user-select:none; }
     details.spark > summary::-webkit-details-marker{ display:none; }
     .sparkwrap{ margin-top:6px; padding:6px; background:rgba(255,255,255,.96); border:1px solid var(--glass-brd); border-radius:10px; color:#0f1720; }
     #sparkLabel{ font-size:11px; color:#0f1720; margin-top:4px; }
@@ -180,12 +180,12 @@
   const EXPECT_TELEM_PERIOD_SEC=15;
   const FIXED_MUNI='NAZARÉ DA MATA';
 
-  // ===== Limiares (cm) — <=3 LARANJA, >3–6 AMARELO, >6 NORMAL =====
-  const LIMITS = { orangeMax: 3, yellowMax: 6 };
+  // ===== Limiares (cm): 0–6 Laranja, >6–12 Amarelo, >12 Normal =====
+  const LIMITS = { orangeMax: 6, yellowMax: 12 };
   function levelFromDistance(d){
-    if (d <= LIMITS.orangeMax) return 'orange';
-    if (d <= LIMITS.yellowMax) return 'yellow';
-    return 'none';
+    if (d <= LIMITS.orangeMax) return 'orange'; // 0–6
+    if (d <= LIMITS.yellowMax) return 'yellow'; // >6–12
+    return 'none';                               // >12
   }
 
   // ===== DOM =====
@@ -352,9 +352,9 @@
   function rand(min,max){ return Math.random()*(max-min)+min; }
   function pick(a){ return a[Math.floor(Math.random()*a.length)]; }
   function demoDistanceFor(level){
-    if(level==='none')   return rand(LIMITS.yellowMax+0.1, LIMITS.yellowMax+6); // >6 cm
-    if(level==='yellow') return rand(LIMITS.orangeMax, LIMITS.yellowMax);       // 3–6 cm (inclui 3)
-    return rand(1.0, LIMITS.orangeMax - 0.05);                                  // <3 cm
+    if(level==='none')   return rand(LIMITS.yellowMax + 0.1, LIMITS.yellowMax + 6); // >12 até ~18
+    if(level==='yellow') return rand(LIMITS.orangeMax + 0.1, LIMITS.yellowMax);     // >6–12
+    return rand(1.0, LIMITS.orangeMax - 0.05);                                      // ~1–5.95
   }
 
   function simulateOnce(){
