@@ -25,12 +25,9 @@
       min-height:100dvh; display:grid; place-items:center;
       padding: max(12px, env(safe-area-inset-top)) 12px max(12px, env(safe-area-inset-bottom)) 12px;
     }
-    /* Mobile = full viewport; Desktop = “phone frame” */
     .app{
       position:relative; overflow:hidden; background:#000;
-      width:100vw; height:100dvh; border-radius:0;
-      box-shadow:none;
-      touch-action:manipulation;
+      width:100vw; height:100dvh; border-radius:0; box-shadow:none; touch-action:manipulation;
     }
     @media (min-width: 481px){
       .app{
@@ -47,10 +44,7 @@
     .scrim{ position:absolute; inset:0; background:linear-gradient(180deg,rgba(0,0,0,.10),rgba(0,0,0,.35)); }
 
     .hud{ position:absolute; left:12px; right:12px; top:calc(12px + env(safe-area-inset-top)); }
-    .widgets{
-      display:grid; gap:12px; width:100%;
-      grid-template-columns:1fr;
-    }
+    .widgets{ display:grid; gap:12px; width:100%; grid-template-columns:1fr; }
 
     .mini{
       padding:14px 16px; border-radius:16px; min-height:96px;
@@ -71,14 +65,6 @@
     .mini.alert{ border-color: rgba(239,108,0,.55); box-shadow:0 10px 24px rgba(239,108,0,.18); }
     .mini.warn { border-color: rgba(249,168,37,.55); box-shadow:0 10px 24px rgba(249,168,37,.18); }
     .mini.ok   { border-color: rgba(46,125,50,.35);  box-shadow:0 10px 24px rgba(46,125,50,.14); }
-    .mini:hover{ transform:translateY(-1px); }
-    .pill-ico{ font-size:16px; }
-    .muted{ color:var(--muted); font-size:12px; opacity:.95; }
-
-    .mini.compact{ padding:10px 14px; min-height:auto; display:flex; align-items:center; gap:10px; border-radius:14px; box-shadow:0 6px 18px rgba(0,0,0,.12); }
-    .mini.compact .t{ display:none; }
-    .mini.compact .s{ display:flex; align-items:center; gap:8px; white-space:nowrap; font-size:13.5px; overflow:hidden; text-overflow:ellipsis; }
-    .mini.compact .s br{ display:none; }
 
     .center{
       position:absolute; left:50%; top:var(--center-top); transform:translate(-50%,-50%);
@@ -110,6 +96,18 @@
     details.spark > summary::-webkit-details-marker{ display:none; }
     .sparkwrap{ margin-top:6px; padding:6px; background:rgba(255,255,255,.96); border:1px solid var(--glass-brd); border-radius:10px; color:#0f1720; }
     #sparkLabel{ font-size:11px; color:#0f1720; margin-top:4px; }
+
+    /* Créditos e bloco da distância reposicionados via JS; z-index acima do fundo e abaixo dos botões */
+    .credits{
+      position:absolute; left:12px; right:12px;
+      text-align:center; font-size:11px; color:#e7eef6; opacity:.95;
+      text-shadow:0 1px 2px rgba(0,0,0,.5); z-index:3;
+    }
+    #ultra-box{
+      position:absolute; left:12px; right:12px;
+      text-align:center; text-shadow:0 1px 3px rgba(0,0,0,.5); z-index:3;
+      pointer-events:none; /* evita clicar “por cima” dos botões */
+    }
   </style>
 </head>
 <body>
@@ -152,8 +150,14 @@
           <div class="msg" id="riverMsg">Tudo tranquilo por enquanto.</div>
         </div>
       </div>
+
+      <!-- Créditos fixos -->
+      <div class="credits" id="credits">
+        <strong>AquaSense</strong> — Joana & Pedro (IPA) • Orientação: Prof. Ana Paula — EAPC/Nazaré da Mata
+      </div>
       
-      <div id="ultra-box" style="position:absolute; bottom:60px; left:12px; right:12px; text-align:center; text-shadow:0 1px 3px rgba(0,0,0,.5); z-index:4;">
+      <!-- Bloco de distância da água (reposicionado via JS p/ não sobrepor) -->
+      <div id="ultra-box">
         <div style="font-size:14px; font-weight:600;">
           Distância da água: <span id="ultra-val" style="font-size:18px;">—</span> 
           <span id="ultra-age" class="muted" style="font-size:11px;"></span>
@@ -161,18 +165,15 @@
         </div>
       </div>
 
-      <div class="bottom">
+      <div class="bottom" id="bottomBar">
         <div class="mid"><div class="ts" id="ts">Atualizado em: — <span id="recencia"></span></div></div>
         <div style="display:flex; gap:8px; flex-wrap:wrap;">
-          <button class="btn btn-refresh" id="btnRefresh" aria-label="Forçar atualização">Atualizar</button>
+          <button class="btn btn-refresh" id="btnRefresh" aria-label="Forçar atualização (demo)">Atualizar</button>
           <button class="btn btn-share-bottom" id="btnShare" aria-label="Compartilhar no WhatsApp">Compartilhar</button>
         </div>
       </div>
     </div>
   </div>
-
-  <!-- Modal Sobre & Fontes -->
-  <div id="aboutModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="aboutTitle" style="display:none"></div>
 
 <script defer>
 (function(){
@@ -180,9 +181,9 @@
   const MAP_BASE='https://geoportal.apac.pe.gov.br/server/rest/services/met_volume_acumulado_chuva_24hs/MapServer';
   const LAYER_MUNICIPIOS=1, FIELD_NAME='nm_mun', FIELD_MM24='horas_24';
   const USE_PROXY=true;
-  const UPDATE_MIN_RAIN=5;                   // chuva: consulta a cada 5 min
-  const POLL_TELEM_SEC=5;                    // consulta API de telemetria a cada 5s
-  const EXPECT_TELEM_PERIOD_SEC=15;          // período esperado do HELTEC (15s)
+  const UPDATE_MIN_RAIN=5;                   // chuva: consulta a cada 5 min (real, em background)
+  const POLL_TELEM_SEC=5;                    // telemetria real a cada 5s (se houver)
+  const EXPECT_TELEM_PERIOD_SEC=15;          // período esperado do HELTEC
   const FIXED_MUNI='NAZARÉ DA MATA';
 
   // ===== DOM =====
@@ -194,6 +195,9 @@
   const spark=document.getElementById('spark'), sparkLabel=document.getElementById('sparkLabel'), sparkDetails=document.getElementById('sparkDetails');
   const ultraVal=document.getElementById('ultra-val'), ultraAge=document.getElementById('ultra-age'), ultraTimer=document.getElementById('ultra-timer');
   const btnRefresh=document.getElementById('btnRefresh');
+  const creditsEl=document.getElementById('credits');
+  const ultraBox=document.getElementById('ultra-box');
+  const bottomBar=document.getElementById('bottomBar');
 
   // ===== Estado =====
   let MUNICIPIO=FIXED_MUNI;
@@ -206,6 +210,17 @@
   const escQ=s=> (s||'').replace(/'/g,"''");
   function fromNow(tsVal){const t=(typeof tsVal==='number')?tsVal:new Date(tsVal).getTime();const s=Math.max(0,(Date.now()-t)/1000|0);if(s<60)return`${s}s`;const m=(s/60|0);if(m<60)return`${m} min`;const h=(m/60|0);return`${h} h`;}
   function setRecencia(tsVal){ recencia.textContent='• há '+fromNow(tsVal); }
+
+  // ===== Layout dynamic (evita sobreposição) =====
+  function placeFloatingBlocks(){
+    const bottomH = bottomBar.getBoundingClientRect().height || 56;
+    // créditos ficam logo acima da barra
+    creditsEl.style.bottom = (bottomH + 8) + 'px';
+    // ultra-box fica acima dos créditos
+    const creditsH = creditsEl.getBoundingClientRect().height || 14;
+    ultraBox.style.bottom = (bottomH + creditsH + 12) + 'px';
+  }
+  window.addEventListener('resize', placeFloatingBlocks);
 
   // ===== Render =====
   function renderUI(){
@@ -226,7 +241,7 @@
     const tsNum=Number(new Date(state.ts))||Date.now();
     ts.firstChild.nodeValue='Atualizado em: '+new Date(tsNum).toLocaleString('pt-BR')+' ';
     setRecencia(tsNum);
-    ensureNoOverlap();
+    placeFloatingBlocks();
   }
   function setCardEmphasis(){ cardRain.className='mini'; cardLand.className='mini';
     if(state.landslide_risk==='orange'){ cardLand.classList.add('alert'); cardRain.classList.add('warn'); }
@@ -238,7 +253,7 @@
   function resolveImage(base,cb){let i=0;const t=()=>{if(i>=EXT.length)return cb(null);const src=`${base}${EXT[i++]}?v=${Date.now()}`;const im=new Image();im.onload=()=>cb(src);im.onerror=t;im.src=src;};t();}
   function setBackground(level){const base=BG_BASE[level]||BG_BASE.none; resolveImage(base,(src)=>{if(!src)return; const next=activeBg==='A'?bgB:bgA, prev=activeBg==='A'?bgA:bgB; next.style.backgroundImage=`url("${src}")`; next.classList.add('active'); prev.classList.remove('active'); activeBg=(activeBg==='A')?'B':'A';});}
 
-  // ===== Chuva =====
+  // ===== Chuva (real) =====
   async function atualizarChuva(){
     try{
       const {muni,mm24,ts:tsRow}=await getRainForMunicipio(MUNICIPIO);
@@ -249,58 +264,32 @@
     }catch(e){ console.warn('[APAC]',e); }
   }
 
-  // busca robusta por “Nazaré da Mata”
   async function getRainForMunicipio(muniRaw){
-    const muniUpper = (muniRaw||'').toString().trim().toUpperCase(); // com acento
-    const muniNorm  = norm(muniRaw);                                 // sem acento
-
-    // 1) Exato COM acento
+    const muniUpper = (muniRaw||'').toString().trim().toUpperCase();
+    const muniNorm  = norm(muniRaw);
     let where = `UPPER(${FIELD_NAME})='${escQ(muniUpper)}'`;
-    let params = new URLSearchParams({
-      where, outFields:`${FIELD_MM24},${FIELD_NAME},ultima_leitura_data_hora`,
-      returnGeometry:'false', f:'json', resultRecordCount:'1'
-    });
+    let params = new URLSearchParams({ where, outFields:`${FIELD_MM24},${FIELD_NAME},ultima_leitura_data_hora`, returnGeometry:'false', f:'json', resultRecordCount:'1' });
     let data = await fetchArcGIS(LAYER_MUNICIPIOS, params);
-
-    // 2) Exato SEM acento
     if(!data.features?.length){
       where = `UPPER(${FIELD_NAME})='${escQ(muniNorm)}'`;
-      params = new URLSearchParams({
-        where, outFields:`${FIELD_MM24},${FIELD_NAME},ultima_leitura_data_hora`,
-        returnGeometry:'false', f:'json', resultRecordCount:'1'
-      });
+      params = new URLSearchParams({ where, outFields:`${FIELD_MM24},${FIELD_NAME},ultima_leitura_data_hora`, returnGeometry:'false', f:'json', resultRecordCount:'1' });
       data = await fetchArcGIS(LAYER_MUNICIPIOS, params);
     }
-
-    // 3) LIKE pela primeira palavra COM acento
     if(!data.features?.length){
       const firstAcc = escQ(muniUpper.split(/\s+/)[0]);
       where = `UPPER(${FIELD_NAME}) LIKE '${firstAcc}%'`;
-      params = new URLSearchParams({
-        where, outFields:`${FIELD_MM24},${FIELD_NAME},ultima_leitura_data_hora`,
-        returnGeometry:'false', f:'json', resultRecordCount:'1'
-      });
+      params = new URLSearchParams({ where, outFields:`${FIELD_MM24},${FIELD_NAME},ultima_leitura_data_hora`, returnGeometry:'false', f:'json', resultRecordCount:'1' });
       data = await fetchArcGIS(LAYER_MUNICIPIOS, params);
     }
-
-    // 4) LIKE pela primeira palavra SEM acento
     if(!data.features?.length){
       const firstNo = escQ(muniNorm.split(/\s+/)[0]);
       where = `UPPER(${FIELD_NAME}) LIKE '${firstNo}%'`;
-      params = new URLSearchParams({
-        where, outFields:`${FIELD_MM24},${FIELD_NAME},ultima_leitura_data_hora`,
-        returnGeometry:'false', f:'json', resultRecordCount:'1'
-      });
+      params = new URLSearchParams({ where, outFields:`${FIELD_MM24},${FIELD_NAME},ultima_leitura_data_hora`, returnGeometry:'false', f:'json', resultRecordCount:'1' });
       data = await fetchArcGIS(LAYER_MUNICIPIOS, params);
     }
-
     if(data.features?.length){
       const a = data.features[0].attributes || {};
-      return {
-        muni: a[FIELD_NAME] || muniRaw,
-        mm24: Number(a[FIELD_MM24] ?? 0),
-        ts:   a.ultima_leitura_data_hora || Date.now()
-      };
+      return { muni: a[FIELD_NAME] || muniRaw, mm24: Number(a[FIELD_MM24] ?? 0), ts: a.ultima_leitura_data_hora || Date.now() };
     }
     throw new Error('Município não encontrado');
   }
@@ -312,7 +301,7 @@
     return r.json();
   }
 
-  // ===== Telemetria =====
+  // ===== Telemetria (real) =====
   async function loadUltrassom(){
     try{
       const r=await fetch('/api/telemetria',{cache:'no-store'}); 
@@ -323,11 +312,8 @@
       if(raw != null){ 
         const distance=Number(raw);
         ultraVal.textContent=distance.toFixed(1)+' cm'; 
-
         const tsMs = dev?.received_at ?? (dev?.data?.ts ? (dev.data.ts*1000) : null);
         if(tsMs){ ultraAge.textContent='• há '+fromNow(tsMs); lastTelemTs=tsMs; }
-
-        // <10 normal, >10 & <20 amarelo, >=20 laranja
         let level='none'; if(distance>20) level='orange'; else if(distance>10) level='yellow';
         state.river_level=level; renderUI();
       } else {
@@ -335,11 +321,11 @@
       }
     } catch(e){
       console.warn('[Telemetria]',e);
-      ultraVal.textContent='Erro'; ultraAge.textContent='';
+      ultraVal.textContent='—'; ultraAge.textContent='';
     }
   }
 
-  // contador “próxima em …s” baseado no último timestamp (periodicidade real 15s)
+  // contador “próxima em …s”
   setInterval(()=>{
     if(!lastTelemTs){ ultraTimer.textContent='(aguardando leitura...)'; return; }
     const elapsed=((Date.now()-lastTelemTs)/1000)|0;
@@ -354,7 +340,7 @@
   function getHistory(m){try{return JSON.parse(localStorage.getItem(histKey(m))||'[]')}catch{return []}}
   function drawSpark(m){
     let a=getHistory(m);
-    if(a.length<2){sparkDetails.open=false; sparkDetails.style.display='none'; ensureNoOverlap(); return;}
+    if(a.length<2){sparkDetails.open=false; sparkDetails.style.display='none'; placeFloatingBlocks(); return;}
     sparkDetails.style.display='';
     const N=Math.min(a.length,32);
     a=a.slice(a.length-N);
@@ -366,18 +352,44 @@
     sparkLabel.textContent=`Últimas ${N} leituras • pico ${max.toFixed(1)} mm • atual ${last.v.toFixed(1)} mm`;
   }
 
-  // ===== Layout helper =====
-  function ensureNoOverlap(){
-    const sparkOpen=sparkDetails.open&&sparkDetails.style.display!=='none';
-    if(!sparkOpen){ appRoot.classList.remove('push-center','push-center-hard'); return; }
-    appRoot.classList.add('push-center');
-    const centerTop=document.querySelector('.center').getBoundingClientRect().top;
-    const hudBottom=hudEl.getBoundingClientRect().bottom;
-    const overlaps=hudBottom+8>centerTop;
-    appRoot.classList.toggle('push-center-hard',overlaps);
+  // ===== DEMO: botão Atualizar sorteia um cenário =====
+  function rand(min,max){ return Math.random()*(max-min)+min; }
+  function pick(a){ return a[Math.floor(Math.random()*a.length)]; }
+
+  function simulateOnce(){
+    // Escolhe nível do rio e distância coerentes
+    const level = pick(['none','yellow','orange']);
+    let distance;
+    if(level==='none') distance = rand(3,8);        // cm
+    else if(level==='yellow') distance = rand(12,18);
+    else distance = rand(24,36);
+
+    // Chuva aleatória “plausível” e risco de deslizamento
+    const mm24 = Math.max(0, +(rand(0,35)).toFixed(1));
+    let land='none'; if(mm24>20) land='orange'; else if(mm24>10) land='yellow';
+
+    // Aplica no estado/UI
+    state.river_level=level;
+    state.rain_mm_24h=mm24;
+    state.landslide_risk=land;
+    state.ts=Date.now();
+    lastTelemTs=Date.now();
+
+    ultraVal.textContent=distance.toFixed(1)+' cm';
+    ultraAge.textContent='• há 0s';
+    muniNameEl.textContent='Nazaré da Mata';
+
+    addHistoryPoint(MUNICIPIO, mm24);
+    renderUI();
+    drawSpark(MUNICIPIO);
   }
-  sparkDetails.addEventListener('toggle',()=>{ if(sparkDetails.open){drawSpark(MUNICIPIO);} ensureNoOverlap(); });
-  window.addEventListener('resize', ensureNoOverlap);
+
+  btnRefresh.addEventListener('click', ()=>{
+    const orig=btnRefresh.textContent;
+    btnRefresh.disabled=true; btnRefresh.textContent='Simulando…';
+    simulateOnce();
+    setTimeout(()=>{ btnRefresh.disabled=false; btnRefresh.textContent=orig; }, 400);
+  });
 
   // ===== Share =====
   function riskShareText(code){ if(code==='orange')return 'ALARANJADO — evite áreas de risco'; if(code==='yellow')return 'AMARELO — atenção'; return 'Nenhum'; }
@@ -391,23 +403,15 @@
     location.href='https://wa.me/?text='+encodeURIComponent(base);
   });
 
-  // ===== Botão Atualizar (força chuva + telemetria) =====
-  btnRefresh.addEventListener('click', async ()=>{
-    const orig=btnRefresh.textContent;
-    btnRefresh.disabled=true; btnRefresh.textContent='Atualizando…';
-    try{ await Promise.allSettled([atualizarChuva(), loadUltrassom()]); }
-    finally{ btnRefresh.disabled=false; btnRefresh.textContent=orig; }
-  });
-
   // ===== Init =====
   bgA.classList.add('active');
   muniNameEl.textContent='Nazaré da Mata';
+  placeFloatingBlocks();
   renderUI();
-  atualizarChuva();
+  atualizarChuva();            // dados reais seguem em background
   loadUltrassom();
   setInterval(atualizarChuva, UPDATE_MIN_RAIN*60*1000);
   setInterval(loadUltrassom, POLL_TELEM_SEC*1000);
-
 })();
 </script>
 
