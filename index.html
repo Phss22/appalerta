@@ -66,6 +66,11 @@
     .mini.warn { border-color: rgba(249,168,37,.55); box-shadow:0 10px 24px rgba(249,168,37,.18); }
     .mini.ok   { border-color: rgba(46,125,50,.35);  box-shadow:0 10px 24px rgba(46,125,50,.14); }
 
+    /* card de deslizamento mais compacto pra não brigar com o emoji */
+    #cardLand{ padding:10px 12px; min-height:auto; }
+    #cardLand .t{ margin-bottom:2px; }
+    #cardLand .s{ font-size:13px; }
+
     .center{
       position:absolute; left:50%; top:var(--center-top); transform:translate(-50%,-50%);
       width:100%; display:flex; justify-content:center; padding:0 16px; pointer-events:none; z-index:3;
@@ -97,16 +102,11 @@
     .sparkwrap{ margin-top:6px; padding:6px; background:rgba(255,255,255,.96); border:1px solid var(--glass-brd); border-radius:10px; color:#0f1720; }
     #sparkLabel{ font-size:11px; color:#0f1720; margin-top:4px; }
 
-    /* Créditos e bloco da distância reposicionados via JS; z-index acima do fundo e abaixo dos botões */
-    .credits{
-      position:absolute; left:12px; right:12px;
-      text-align:center; font-size:11px; color:#e7eef6; opacity:.95;
-      text-shadow:0 1px 2px rgba(0,0,0,.5); z-index:3;
-    }
+    /* bloco de distância fica sempre acima da barra inferior */
     #ultra-box{
       position:absolute; left:12px; right:12px;
       text-align:center; text-shadow:0 1px 3px rgba(0,0,0,.5); z-index:3;
-      pointer-events:none; /* evita clicar “por cima” dos botões */
+      pointer-events:none;
     }
   </style>
 </head>
@@ -150,13 +150,7 @@
           <div class="msg" id="riverMsg">Tudo tranquilo por enquanto.</div>
         </div>
       </div>
-
-      <!-- Créditos fixos -->
-      <div class="credits" id="credits">
-        <strong>AquaSense</strong> — Joana & Pedro (IPA) • Orientação: Prof. Ana Paula — EAPC/Nazaré da Mata
-      </div>
       
-      <!-- Bloco de distância da água (reposicionado via JS p/ não sobrepor) -->
       <div id="ultra-box">
         <div style="font-size:14px; font-weight:600;">
           Distância da água: <span id="ultra-val" style="font-size:18px;">—</span> 
@@ -181,9 +175,9 @@
   const MAP_BASE='https://geoportal.apac.pe.gov.br/server/rest/services/met_volume_acumulado_chuva_24hs/MapServer';
   const LAYER_MUNICIPIOS=1, FIELD_NAME='nm_mun', FIELD_MM24='horas_24';
   const USE_PROXY=true;
-  const UPDATE_MIN_RAIN=5;                   // chuva: consulta a cada 5 min (real, em background)
-  const POLL_TELEM_SEC=5;                    // telemetria real a cada 5s (se houver)
-  const EXPECT_TELEM_PERIOD_SEC=15;          // período esperado do HELTEC
+  const UPDATE_MIN_RAIN=5;
+  const POLL_TELEM_SEC=5;
+  const EXPECT_TELEM_PERIOD_SEC=15;
   const FIXED_MUNI='NAZARÉ DA MATA';
 
   // ===== DOM =====
@@ -195,15 +189,13 @@
   const spark=document.getElementById('spark'), sparkLabel=document.getElementById('sparkLabel'), sparkDetails=document.getElementById('sparkDetails');
   const ultraVal=document.getElementById('ultra-val'), ultraAge=document.getElementById('ultra-age'), ultraTimer=document.getElementById('ultra-timer');
   const btnRefresh=document.getElementById('btnRefresh');
-  const creditsEl=document.getElementById('credits');
-  const ultraBox=document.getElementById('ultra-box');
   const bottomBar=document.getElementById('bottomBar');
 
   // ===== Estado =====
   let MUNICIPIO=FIXED_MUNI;
   let state={river_level:'none', rain_mm_24h:NaN, landslide_risk:'none', ts:Date.now()};
   let prevRiverLevel=state.river_level, activeBg='A';
-  let lastTelemTs=null; // timestamp da última telemetria recebida (ms)
+  let lastTelemTs=null;
 
   // ===== Utils =====
   const norm=s=> (s||'').toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim();
@@ -211,16 +203,12 @@
   function fromNow(tsVal){const t=(typeof tsVal==='number')?tsVal:new Date(tsVal).getTime();const s=Math.max(0,(Date.now()-t)/1000|0);if(s<60)return`${s}s`;const m=(s/60|0);if(m<60)return`${m} min`;const h=(m/60|0);return`${h} h`;}
   function setRecencia(tsVal){ recencia.textContent='• há '+fromNow(tsVal); }
 
-  // ===== Layout dynamic (evita sobreposição) =====
-  function placeFloatingBlocks(){
+  // ===== posiciona ultra-box acima da barra inferior =====
+  function placeUltraBox(){
     const bottomH = bottomBar.getBoundingClientRect().height || 56;
-    // créditos ficam logo acima da barra
-    creditsEl.style.bottom = (bottomH + 8) + 'px';
-    // ultra-box fica acima dos créditos
-    const creditsH = creditsEl.getBoundingClientRect().height || 14;
-    ultraBox.style.bottom = (bottomH + creditsH + 12) + 'px';
+    document.getElementById('ultra-box').style.bottom = (bottomH + 8) + 'px';
   }
-  window.addEventListener('resize', placeFloatingBlocks);
+  window.addEventListener('resize', placeUltraBox);
 
   // ===== Render =====
   function renderUI(){
@@ -241,7 +229,7 @@
     const tsNum=Number(new Date(state.ts))||Date.now();
     ts.firstChild.nodeValue='Atualizado em: '+new Date(tsNum).toLocaleString('pt-BR')+' ';
     setRecencia(tsNum);
-    placeFloatingBlocks();
+    placeUltraBox();
   }
   function setCardEmphasis(){ cardRain.className='mini'; cardLand.className='mini';
     if(state.landslide_risk==='orange'){ cardLand.classList.add('alert'); cardRain.classList.add('warn'); }
@@ -256,7 +244,7 @@
   // ===== Chuva (real) =====
   async function atualizarChuva(){
     try{
-      const {muni,mm24,ts:tsRow}=await getRainForMunicipio(MUNICIPIO);
+      const {muni,mm24,ts:tsRow}=await getRainForMunicipio(FIXED_MUNI);
       MUNICIPIO=muni; muniNameEl.textContent=muni;
       let land='none'; if(mm24>20) land='orange'; else if(mm24>10) land='yellow';
       state.rain_mm_24h=mm24; state.landslide_risk=land; state.ts=tsRow||Date.now();
@@ -340,7 +328,7 @@
   function getHistory(m){try{return JSON.parse(localStorage.getItem(histKey(m))||'[]')}catch{return []}}
   function drawSpark(m){
     let a=getHistory(m);
-    if(a.length<2){sparkDetails.open=false; sparkDetails.style.display='none'; placeFloatingBlocks(); return;}
+    if(a.length<2){sparkDetails.open=false; sparkDetails.style.display='none'; placeUltraBox(); return;}
     sparkDetails.style.display='';
     const N=Math.min(a.length,32);
     a=a.slice(a.length-N);
@@ -357,18 +345,15 @@
   function pick(a){ return a[Math.floor(Math.random()*a.length)]; }
 
   function simulateOnce(){
-    // Escolhe nível do rio e distância coerentes
     const level = pick(['none','yellow','orange']);
     let distance;
-    if(level==='none') distance = rand(3,8);        // cm
+    if(level==='none') distance = rand(3,8);
     else if(level==='yellow') distance = rand(12,18);
     else distance = rand(24,36);
 
-    // Chuva aleatória “plausível” e risco de deslizamento
     const mm24 = Math.max(0, +(rand(0,35)).toFixed(1));
     let land='none'; if(mm24>20) land='orange'; else if(mm24>10) land='yellow';
 
-    // Aplica no estado/UI
     state.river_level=level;
     state.rain_mm_24h=mm24;
     state.landslide_risk=land;
@@ -388,7 +373,7 @@
     const orig=btnRefresh.textContent;
     btnRefresh.disabled=true; btnRefresh.textContent='Simulando…';
     simulateOnce();
-    setTimeout(()=>{ btnRefresh.disabled=false; btnRefresh.textContent=orig; }, 400);
+    setTimeout(()=>{ btnRefresh.disabled=false; btnRefresh.textContent=orig; }, 350);
   });
 
   // ===== Share =====
@@ -406,10 +391,10 @@
   // ===== Init =====
   bgA.classList.add('active');
   muniNameEl.textContent='Nazaré da Mata';
-  placeFloatingBlocks();
   renderUI();
-  atualizarChuva();            // dados reais seguem em background
+  atualizarChuva();
   loadUltrassom();
+  placeUltraBox();
   setInterval(atualizarChuva, UPDATE_MIN_RAIN*60*1000);
   setInterval(loadUltrassom, POLL_TELEM_SEC*1000);
 })();
