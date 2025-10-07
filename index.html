@@ -302,7 +302,7 @@
         ultraVal.textContent=distance.toFixed(1)+' cm'; 
         const tsMs = dev?.received_at ?? (dev?.data?.ts ? (dev.data.ts*1000) : null);
         if(tsMs){ ultraAge.textContent='• há '+fromNow(tsMs); lastTelemTs=tsMs; }
-        let level='none'; if(distance>20) level='orange'; else if(distance>10) level='yellow';
+        let level='none'; if(distance>6) level='orange'; else if(distance>3) level='yellow';
         state.river_level=level; renderUI();
       } else {
         ultraVal.textContent='—'; ultraAge.textContent='';
@@ -402,3 +402,4 @@
 
 </body>
 </html>
+
