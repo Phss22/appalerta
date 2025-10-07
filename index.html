@@ -180,11 +180,11 @@
   const EXPECT_TELEM_PERIOD_SEC=15;
   const FIXED_MUNI='NAZARÉ DA MATA';
 
-  // ===== NOVO: limiares de distância (cm) =====
-  const THRESH = { normalMax: 3, yellowMax: 6 }; // 1–3 normal, >3–6 amarelo, >6 laranja
+  // ===== Limiares (cm) — <=3 LARANJA, >3–6 AMARELO, >6 NORMAL =====
+  const LIMITS = { orangeMax: 3, yellowMax: 6 };
   function levelFromDistance(d){
-    if (d > THRESH.yellowMax) return 'orange';
-    if (d > THRESH.normalMax) return 'yellow';
+    if (d <= LIMITS.orangeMax) return 'orange';
+    if (d <= LIMITS.yellowMax) return 'yellow';
     return 'none';
   }
 
@@ -310,7 +310,7 @@
         ultraVal.textContent=distance.toFixed(1)+' cm'; 
         const tsMs = dev?.received_at ?? (dev?.data?.ts ? (dev.data.ts*1000) : null);
         if(tsMs){ ultraAge.textContent='• há '+fromNow(tsMs); lastTelemTs=tsMs; }
-        state.river_level = levelFromDistance(distance);   // <<< usa os limiares 1–3 / 3–6 / >6
+        state.river_level = levelFromDistance(distance);
         renderUI();
       } else {
         ultraVal.textContent='—'; ultraAge.textContent='';
@@ -348,14 +348,13 @@
     sparkLabel.textContent=`Últimas ${N} leituras • pico ${max.toFixed(1)} mm • atual ${last.v.toFixed(1)} mm`;
   }
 
-  // ===== DEMO: botão Atualizar sorteia um cenário coerente com os limiares =====
+  // ===== DEMO: botão Atualizar (gera distância compatível com os limites) =====
   function rand(min,max){ return Math.random()*(max-min)+min; }
   function pick(a){ return a[Math.floor(Math.random()*a.length)]; }
   function demoDistanceFor(level){
-    const eps=0.01;
-    if(level==='none')   return rand(1, THRESH.normalMax);                      // 1–3
-    if(level==='yellow') return rand(THRESH.normalMax+eps, THRESH.yellowMax);   // >3–6
-    return rand(THRESH.yellowMax+eps, THRESH.yellowMax+6);                       // >6–12 (ajuste à vontade)
+    if(level==='none')   return rand(LIMITS.yellowMax+0.1, LIMITS.yellowMax+6); // >6 cm
+    if(level==='yellow') return rand(LIMITS.orangeMax, LIMITS.yellowMax);       // 3–6 cm (inclui 3)
+    return rand(1.0, LIMITS.orangeMax - 0.05);                                  // <3 cm
   }
 
   function simulateOnce(){
