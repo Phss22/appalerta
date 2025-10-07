@@ -180,6 +180,14 @@
   const EXPECT_TELEM_PERIOD_SEC=15;
   const FIXED_MUNI='NAZARÉ DA MATA';
 
+  // ===== NOVO: limiares de distância (cm) =====
+  const THRESH = { normalMax: 3, yellowMax: 6 }; // 1–3 normal, >3–6 amarelo, >6 laranja
+  function levelFromDistance(d){
+    if (d > THRESH.yellowMax) return 'orange';
+    if (d > THRESH.normalMax) return 'yellow';
+    return 'none';
+  }
+
   // ===== DOM =====
   const appRoot=document.getElementById('appRoot'), hudEl=document.querySelector('.hud'), bgA=document.getElementById('bgA'), bgB=document.getElementById('bgB');
   const riverIcon=document.getElementById('riverIcon'), riverStatus=document.getElementById('riverStatus'), riverMsg=document.getElementById('riverMsg');
@@ -302,8 +310,8 @@
         ultraVal.textContent=distance.toFixed(1)+' cm'; 
         const tsMs = dev?.received_at ?? (dev?.data?.ts ? (dev.data.ts*1000) : null);
         if(tsMs){ ultraAge.textContent='• há '+fromNow(tsMs); lastTelemTs=tsMs; }
-        let level='none'; if(distance>6) level='orange'; else if(distance>3) level='yellow';
-        state.river_level=level; renderUI();
+        state.river_level = levelFromDistance(distance);   // <<< usa os limiares 1–3 / 3–6 / >6
+        renderUI();
       } else {
         ultraVal.textContent='—'; ultraAge.textContent='';
       }
@@ -340,16 +348,19 @@
     sparkLabel.textContent=`Últimas ${N} leituras • pico ${max.toFixed(1)} mm • atual ${last.v.toFixed(1)} mm`;
   }
 
-  // ===== DEMO: botão Atualizar sorteia um cenário =====
+  // ===== DEMO: botão Atualizar sorteia um cenário coerente com os limiares =====
   function rand(min,max){ return Math.random()*(max-min)+min; }
   function pick(a){ return a[Math.floor(Math.random()*a.length)]; }
+  function demoDistanceFor(level){
+    const eps=0.01;
+    if(level==='none')   return rand(1, THRESH.normalMax);                      // 1–3
+    if(level==='yellow') return rand(THRESH.normalMax+eps, THRESH.yellowMax);   // >3–6
+    return rand(THRESH.yellowMax+eps, THRESH.yellowMax+6);                       // >6–12 (ajuste à vontade)
+  }
 
   function simulateOnce(){
     const level = pick(['none','yellow','orange']);
-    let distance;
-    if(level==='none') distance = rand(3,8);
-    else if(level==='yellow') distance = rand(12,18);
-    else distance = rand(24,36);
+    const distance = demoDistanceFor(level);
 
     const mm24 = Math.max(0, +(rand(0,35)).toFixed(1));
     let land='none'; if(mm24>20) land='orange'; else if(mm24>10) land='yellow';
@@ -402,4 +413,3 @@
 
 </body>
 </html>
-
