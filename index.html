@@ -348,7 +348,7 @@
     sparkLabel.textContent=`Últimas ${N} leituras • pico ${max.toFixed(1)} mm • atual ${last.v.toFixed(1)} mm`;
   }
 
-  // ===== DEMO: botão Atualizar (gera distância compatível com os limites) =====
+  // ===== DEMO: botão Atualizar (agora atualiza SÓ a distância) =====
   function rand(min,max){ return Math.random()*(max-min)+min; }
   function pick(a){ return a[Math.floor(Math.random()*a.length)]; }
   function demoDistanceFor(level){
@@ -358,25 +358,21 @@
   }
 
   function simulateOnce(){
-    const level = pick(['none','yellow','orange']);
-    const distance = demoDistanceFor(level);
+    // Sorteia uma faixa apenas para gerar um valor plausível,
+    // mas NÃO altera chuva, risco, histórico, município ou timestamp de chuva.
+    const randomBand = pick(['none','yellow','orange']);
+    const distance = demoDistanceFor(randomBand);
 
-    const mm24 = Math.max(0, +(rand(0,35)).toFixed(1));
-    let land='none'; if(mm24>20) land='orange'; else if(mm24>10) land='yellow';
+    // Marca momento da leitura de telemetria
+    lastTelemTs = Date.now();
 
-    state.river_level=level;
-    state.rain_mm_24h=mm24;
-    state.landslide_risk=land;
-    state.ts=Date.now();
-    lastTelemTs=Date.now();
+    // Atualiza somente UI/estado relacionado à distância e nível do rio
+    ultraVal.textContent = distance.toFixed(1) + ' cm';
+    ultraAge.textContent = '• há 0s';
+    state.river_level = levelFromDistance(distance);
 
-    ultraVal.textContent=distance.toFixed(1)+' cm';
-    ultraAge.textContent='• há 0s';
-    muniNameEl.textContent='Nazaré da Mata';
-
-    addHistoryPoint(MUNICIPIO, mm24);
+    // Renderiza (sem tocar em rain_mm_24h / spark / landslide_risk)
     renderUI();
-    drawSpark(MUNICIPIO);
   }
 
   btnRefresh.addEventListener('click', ()=>{
